@@ -50,6 +50,11 @@ export const ReviewComplaint: React.FC = () => {
         audioTranscript: draft.audioTranscript,
         contactPhone: phone.trim() ? phone.trim() : undefined,
         preferredContactChannel: channel,
+        travelDate: draft.travelDate ?? null,
+        ticketExtracted: draft.ticketExtracted ?? null,
+        evidence: (draft.uploadedEvidence ?? []).map((e) => ({
+          storage_path: e.storage_path, mime_type: e.mime_type, size_bytes: e.size_bytes,
+        })),
       });
 
       updateDraft({

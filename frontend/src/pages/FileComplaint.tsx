@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useComplaintDraft } from '../hooks/useComplaintDraft';
 import { COMPLAINT_CATEGORIES } from '../lib/constants';
+import { complaintsService } from '../lib/api';
 import type { ComplaintCategory } from '../types';
 import { useLanguage } from '../hooks/useLanguage';
 import { lookupService } from '../lib/api';
@@ -29,6 +30,7 @@ import {
   Users,
   HeartHandshake,
   CreditCard,
+  Ticket,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -122,6 +124,14 @@ export const FileComplaint: React.FC = () => {
   const [busNumber, setBusNumber] = useState(draft.busNumber || '');
   const [location, setLocation] = useState(draft.location || '');
   const [evidenceFiles, setEvidenceFiles] = useState<string[]>(draft.evidenceFiles || []);
+  // Ticket-first flow (bot parity): upload a ticket photo, the vision slot
+  // fills bus/route/date automatically; the photo itself is proof of travel.
+  const [ticketStatus, setTicketStatus] = useState<'idle' | 'reading' | 'read' | 'failed' | 'unavailable'>(
+    draft.ticketExtracted ? 'read' : 'idle'
+  );
+  const [ticketFields, setTicketFields] = useState<string[]>([]);
+  const [uploadedEvidence, setUploadedEvidence] = useState(draft.uploadedEvidence || []);
+  const [uploadingEvidence, setUploadingEvidence] = useState(false);
   const [showMoreDetails, setShowMoreDetails] = useState<boolean>(
     Boolean(draft.via || draft.busNumber || (draft.location && draft.location !== 'Onboard bus') || (draft.evidenceFiles && draft.evidenceFiles.length > 0))
   );
@@ -210,20 +220,76 @@ export const FileComplaint: React.FC = () => {
       location: location.trim() || 'Onboard bus',
       description: description.trim(),
       evidenceFiles,
+      uploadedEvidence,
+      travelDate: draft.travelDate ?? null,
+      ticketExtracted: draft.ticketExtracted ?? null,
     });
 
     navigate('/file-complaint/review');
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setEvidenceFiles((prev) => [...prev, file.name]);
-    }
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = ''; // allow re-selecting the same file
+    setUploadingEvidence(true);
+    complaintsService
+      .uploadEvidence(file)
+      .then((up) => {
+        setUploadedEvidence((prev) => [...prev, { ...up, name: file.name }]);
+        setEvidenceFiles((prev) => [...prev, file.name]);
+      })
+      .catch(() => {
+        setValidationError(
+          `Could not upload ${file.name} (max 20 MB, images/PDF/videos). It was not attached.`
+        );
+      })
+      .finally(() => setUploadingEvidence(false));
   };
 
   const handleRemoveFile = (indexToRemove: number) => {
     setEvidenceFiles((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+    setUploadedEvidence((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
+  /** Ticket photo -> vision slot -> auto-fill bus/route (+ keep photo as proof). */
+  const handleTicketUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    setTicketStatus('reading');
+    void (async () => {
+      const extracted = await complaintsService.extractTicket(file);
+      const found = extracted
+        ? Object.entries(extracted)
+            .filter(([, v]) => v !== null && v !== '' && v !== false)
+            .map(([k]) => k)
+        : [];
+      if (extracted && found.length > 0) {
+        setTicketStatus('read');
+        setTicketFields(found);
+        updateDraft({
+          ticketExtracted: extracted as unknown as Record<string, unknown>,
+          travelDate: extracted.travel_date ?? null,
+          busNumber: extracted.bus_number ?? busNumber,
+          origin: extracted.origin || origin,
+          destination: extracted.destination || destination,
+        });
+        if (extracted.bus_number) setBusNumber(extracted.bus_number);
+        if (extracted.origin) setOrigin(extracted.origin);
+        if (extracted.destination) setDestination(extracted.destination);
+      } else {
+        // Slot down ('unavailable') or photo unreadable ('failed') — both fail soft.
+        setTicketStatus(extracted ? 'failed' : 'unavailable');
+      }
+      // Photo is proof of travel either way (mirrors the bot).
+      try {
+        const up = await complaintsService.uploadEvidence(file);
+        setUploadedEvidence((prev) => [...prev, { ...up, name: file.name }]);
+        setEvidenceFiles((prev) => [...prev, file.name]);
+      } catch {
+        /* offline: complaint still files without the photo */
+      }      })();
   };
 
   return (
@@ -310,6 +376,76 @@ export const FileComplaint: React.FC = () => {
                   placeholder="e.g. Bus arrived 45 minutes late with no announcement, or driver was overtaking dangerously on the highway..."
                   autoFocus
                 />
+              </div>
+
+              {/* Ticket-first flow (bot parity): photo -> vision slot fills the details */}
+              <div className="p-4 rounded-[10px] bg-[var(--surface-primary)] border border-[var(--border-standard)] space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-[12px] font-mono uppercase tracking-wider text-[var(--brand)] font-bold">
+                      Have your ticket photo?
+                    </div>
+                    <p className="text-[13px] text-[var(--text-secondary)] mt-0.5">
+                      We read it and fill the bus, route and date for you. Optional.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <input
+                    type="file"
+                    id="ticket-photo"
+                    accept="image/*"
+                    onChange={handleTicketUpload}
+                    className="hidden"
+                  />
+                  <label
+                    htmlFor="ticket-photo"
+                    className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-[8px] border text-[13px] font-medium cursor-pointer transition-colors ${
+                      ticketStatus === 'reading'
+                        ? 'bg-[var(--surface-secondary)] border-[var(--brand)] text-[var(--brand)]'
+                        : 'bg-[var(--bg-primary)] border-[var(--border-standard)] text-[var(--text-primary)] hover:bg-[var(--surface-secondary)]'
+                    }`}
+                  >
+                    <Ticket className="w-3.5 h-3.5 text-[var(--brand)]" />
+                    <span>{ticketStatus === 'reading' ? 'Reading ticket…' : 'Upload ticket photo'}</span>
+                  </label>
+                  <span className="text-[11px] text-[var(--text-muted)] font-mono">JPG, PNG up to 20MB</span>
+                </div>
+
+                {ticketStatus === 'read' && (
+                  <div className="flex items-start gap-2 text-[13px]">
+                    <CheckCircle2 className="w-4 h-4 text-[var(--brand)] shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-[var(--text-primary)] font-medium">Ticket read.</span>{' '}
+                      <span className="text-[var(--text-secondary)]">
+                        We filled in what we found below — please check it in the next step.
+                      </span>
+                      {ticketFields.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          {ticketFields.map((f) => (
+                            <span
+                              key={f}
+                              className="px-2 py-0.5 rounded-[6px] bg-[var(--bg-primary)] border border-[var(--border-standard)] font-mono text-[11px] text-[var(--text-secondary)]"
+                            >
+                              {f.replace(/_/g, ' ')}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {ticketStatus === 'failed' && (
+                  <div className="text-[13px] text-[var(--text-secondary)]">
+                    Couldn’t read that image — no problem, just fill the details yourself below.
+                  </div>
+                )}
+                {ticketStatus === 'unavailable' && (
+                  <div className="text-[13px] text-[var(--text-secondary)]">
+                    Ticket reading is offline right now — fill the details yourself; the photo was still saved as proof.
+                  </div>
+                )}
               </div>
 
               {/* Category Selection UX: Suggested category card + Change toggle */}
@@ -589,10 +725,10 @@ export const FileComplaint: React.FC = () => {
                       className="inline-flex items-center gap-2 px-3.5 py-2 rounded-[8px] bg-[var(--bg-primary)] border border-[var(--border-standard)] text-[13px] font-medium text-[var(--text-primary)] hover:bg-[var(--surface-secondary)] cursor-pointer transition-colors"
                     >
                       <Upload className="w-3.5 h-3.5 text-[var(--brand)]" />
-                      <span>Attach file</span>
+                      <span>{uploadingEvidence ? 'Attaching…' : 'Attach file'}</span>
                     </label>
                     <span className="text-[11px] text-[var(--text-muted)] font-mono">
-                      PNG, JPG, PDF up to 10MB
+                      JPG, PNG, PDF, video up to 20MB
                     </span>
                   </div>
 

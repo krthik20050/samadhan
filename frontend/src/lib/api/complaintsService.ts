@@ -20,6 +20,27 @@ export interface SubmitComplaintPayload {
   audioTranscript?: string;
   preferredContactChannel?: 'whatsapp' | 'sms' | 'email';
   contactPhone?: string;
+  travelDate?: string | null;
+  ticketExtracted?: Record<string, unknown> | null;
+  /** Already-uploaded evidence (bucket paths from uploadEvidence). */
+  evidence?: { storage_path: string; mime_type: string; size_bytes: number }[];
+}
+
+/** Shape returned by POST /api/v1/extract/ticket (Groq vision slot). */
+export interface TicketExtract {
+  bus_number: string | null;
+  origin: string | null;
+  destination: string | null;
+  travel_date: string | null;
+  travel_time: string | null;
+  ticket_no: string | null;
+  pnr: string | null;
+  depot: string | null;
+  service_type: string | null;
+  trip_code: string | null;
+  depot_phone: string | null;
+  landmark: string | null;
+  has_qr: boolean | null;
 }
 
 // UI categories -> backend Category enum
@@ -161,6 +182,9 @@ export const complaintsService = {
           location_text: payload.location || null,
           description: payload.description,
           contact_phone: payload.contactPhone || null,
+          travel_date: payload.travelDate || null,
+          ticket_extracted: payload.ticketExtracted ?? null,
+          evidence: payload.evidence ?? [],
         }),
       });
       const nowIso = new Date().toISOString();
@@ -206,6 +230,33 @@ export const complaintsService = {
           anonymizedTarget: anonymize(payload.contactPhone),
         },
     };
+  },
+
+  /** Ticket photo -> Groq vision slot. Returns null when the slot is down or the photo is unreadable (fail-soft, bot parity). */
+  async extractTicket(file: File): Promise<TicketExtract | null> {
+    const form = new FormData();
+    form.append('file', file);
+    try {
+      const res = await api<{ extracted: TicketExtract | null }>('/api/v1/extract/ticket', {
+        method: 'POST',
+        body: form,
+      });
+      return res?.extracted ?? null;
+    } catch {
+      return null; // complaint can still be filed by hand
+    }
+  },
+
+  /** Upload one evidence file to the bucket. Throws so the caller can surface the failure. */
+  async uploadEvidence(
+    file: File
+  ): Promise<{ storage_path: string; mime_type: string; size_bytes: number }> {
+    const form = new FormData();
+    form.append('file', file);
+    return api<{ storage_path: string; mime_type: string; size_bytes: number }>('/api/v1/uploads', {
+      method: 'POST',
+      body: form,
+    });
   },
 
   async updateStatus(

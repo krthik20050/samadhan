@@ -2,6 +2,13 @@ import React, { createContext, useContext, useState } from 'react';
 import type { ComplaintCategory, ComplaintData } from '../types';
 
 
+export interface UploadedEvidence {
+  storage_path: string;
+  mime_type: string;
+  size_bytes: number;
+  name: string;
+}
+
 export interface DraftComplaint {
   category: ComplaintCategory;
   origin: string;
@@ -14,19 +21,23 @@ export interface DraftComplaint {
   preferredContactChannel: 'whatsapp' | 'sms' | 'email';
   contactPhone: string;
   evidenceFiles?: string[];
+  /** Ticket photo read by the vision slot (raw payload kept for audit). */
+  ticketExtracted?: Record<string, unknown> | null;
+  travelDate?: string | null;
+  /** Evidence already uploaded to the bucket (paths, not File objects). */
+  uploadedEvidence?: UploadedEvidence[];
 }
 
 const DEFAULT_DRAFT: DraftComplaint = {
   category: 'cleanliness',
-  origin: 'Guruvayur',
-  destination: 'Kozhikode',
-  via: 'Ponnani - Tirur',
-  busNumber: 'KL-15-A-4892',
-  location: 'Middle row seats',
-  description: 'The seats in the middle row were very dirty and had snack wrappers left behind.',
-  audioTranscript: 'I have a cleanliness complaint about the bus travelling from Guruvayur to Kozhikode. The middle seats are dirty.',
+  origin: '',
+  destination: '',
+  via: '',
+  busNumber: '',
+  location: '',
+  description: '',
   preferredContactChannel: 'whatsapp',
-  contactPhone: '9847012345',
+  contactPhone: '',
   evidenceFiles: [],
 };
 
