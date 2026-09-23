@@ -1,32 +1,35 @@
-// SAMADHAN API — Supabase Edge Function (replaces the FastAPI backend for
-// hosted use; see supabase/README.md). One function routes every endpoint:
+// SAMADHAN API — Supabase Edge Function (hosted backend; see supabase/README.md).
 //
+// Endpoints:
 //   GET  /health
-//   POST /api/v1/complaints                    file a complaint
+//   POST /api/v1/complaints                    file a complaint (+ticket fields, evidence[])
+//   POST /api/v1/uploads                       multipart file -> evidence bucket (web form)
 //   GET  /api/v1/complaints/{reference_id}     track
 //   GET  /api/v1/routes?q=&limit=              dataset lookups
 //   GET  /api/v1/depots?q=&limit=
 //   GET  /api/v1/dashboard/summary             anonymised totals
 //   GET  /api/v1/dashboard/complaints          staff-only (Bearer token)
 //   POST /api/v1/auth/login                    staff password check
-//   POST /api/v1/telegram/webhook              Telegram bot (button flow)
-//   GET  /api/v1/voice/status                  Sarvam STT configured?
-//   POST /api/v1/voice/transcribe              audio → transcript (Sarvam)
+//   POST /api/v1/extract/ticket                image -> structured ticket JSON (Groq vision)
+//   POST /api/v1/voice/status                  Sarvam STT configured?
+//   POST /api/v1/voice/transcribe              audio -> transcript (Sarvam)
+//   POST /api/v1/telegram/webhook              Telegram bot (ticket-first flow)
 //
-// All business logic lives in Postgres RPCs (migrations 005 + 006); this
-// function validates, enforces auth, and maps errors. Response shapes mirror
-// FastAPI 1:1 so the frontend contract does not change.
+// API SLOTS (set as function secrets — everything works once keys exist):
+//   GROQ_API_KEY   — ticket photo -> structured JSON (vision LLM). GROQ_MODEL optional.
+//   SARVAM_API_KEY — voice notes -> text (STT). Also used by /api/v1/voice/*.
+//   TELEGRAM_BOT_TOKEN / TELEGRAM_SECRET_TOKEN / ADMIN_API_TOKEN — as before.
+//   Every slot is optional at runtime: features degrade gracefully, nothing 500s.
 //
-// Telegram flow (BloodLink pattern): one question at a time, inline buttons
-// over free text, conversation state persisted in Postgres (tg_conv_* RPCs),
-// atomic claim to defeat double-taps, /cancel safety, edit-before-submit.
+// Live sync: every write (Telegram or web) lands in the same Postgres tables the
+// website and admin panel read, so submissions appear on the next poll.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const HELP =
-  '🚌 SAMADHAN — file a KSRTC complaint in 30 seconds.\n\n' +
-  'Tap the menu button or send /complain to start. ' +
-  'Track anytime with /track KSRTC-XXXXXX, your complaints with /my. ' +
-  '/cancel stops the current flow.';
+  '🚌 SAMADHAN — file a KSRTC complaint in under a minute.\n\n' +
+  'Send /complain: upload your ticket photo and I read the bus number, route ' +
+  'and date from it automatically. Track with /track KSRTC-XXXXXX, your ' +
+  'complaints with /my. /cancel stops the current flow.';
 
 const CATEGORIES: [string, string][] = [
   ['cleanliness', '🧹 Cleanliness'],
@@ -41,7 +44,7 @@ const CATEGORIES: [string, string][] = [
 ];
 const CATEGORY_LABELS = new Map(CATEGORIES);
 
-// ponytail: keyword guess for bare text with no flow — replace with LLM extraction (Phase 10) if it misfires.
+// ponytail: keyword guess for bare text — replace with LLM extraction (Phase 10) if it misfires.
 const KEYWORDS: [string, string[]][] = [
   ['cleanliness', ['dirty', 'clean', 'garbage', 'smell']],
   ['unsafe_driving', ['rash', 'speed', 'unsafe', 'accident', 'brake']],
@@ -148,7 +151,7 @@ const tgAnswer = (cbId: string, text?: string) =>
 async function tgConfigureBot(): Promise<void> {
   await tgCall('setMyCommands', {
     commands: [
-      { command: 'complain', description: 'File a complaint' },
+      { command: 'complain', description: 'File a complaint (upload your ticket)' },
       { command: 'my', description: 'My complaints' },
       { command: 'track', description: 'Track a complaint (e.g. /track KSRTC-2026-ABC123)' },
       { command: 'help', description: 'How to use SAMADHAN' },
@@ -157,10 +160,129 @@ async function tgConfigureBot(): Promise<void> {
   });
 }
 
+/** Download a Telegram file's bytes (20 MB bot cap; verified before call). */
+async function tgDownloadFile(fileId: string): Promise<{ bytes: Uint8Array; mime: string } | { error: string }> {
+  const token = Deno.env.get('TELEGRAM_BOT_TOKEN');
+  if (!token) return { error: 'no Telegram credentials' };
+  const meta = await tgCall('getFile', { file_id: fileId });
+  const filePath = (meta as { result?: { file_path?: string } })?.result?.file_path;
+  if (!filePath) return { error: 'getFile failed' };
+  const r = await fetch(`https://api.telegram.org/file/bot${token}/${filePath}`);
+  if (!r.ok) return { error: `download failed (${r.status})` };
+  const bytes = new Uint8Array(await r.arrayBuffer());
+  const mime = r.headers.get('content-type') ?? 'application/octet-stream';
+  return { bytes, mime };
+}
+
+// ---------------------------------------------------------------------------
+// ML slots: Groq vision (ticket extraction) + Sarvam (voice STT)
+// ---------------------------------------------------------------------------
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_MODEL_DEFAULT = 'meta-llama/llama-4-scout-17b-16e-instruct';
+
+function groqModel(): string {
+  return Deno.env.get('GROQ_MODEL') ?? GROQ_MODEL_DEFAULT;
+}
+
+type TicketExtract = {
+  bus_number: string | null;
+  origin: string | null;
+  destination: string | null;
+  travel_date: string | null; // YYYY-MM-DD
+  ticket_no: string | null;
+  depot: string | null;
+  service_type: string | null;
+};
+
+/** Ticket photo -> structured JSON via Groq vision. Slot: GROQ_API_KEY. */
+async function extractTicketWithGroq(
+  bytes: Uint8Array,
+  mime: string,
+): Promise<{ ok: true; data: TicketExtract } | { ok: false; reason: string }> {
+  const key = Deno.env.get('GROQ_API_KEY');
+  if (!key) return { ok: false, reason: 'GROQ_API_KEY not set — paste it as a function secret' };
+  const b64 = btoa(String.fromCharCode(...bytes));
+  const prompt =
+    'Read this KSRTC bus ticket image and return ONLY a JSON object with keys ' +
+    'bus_number (vehicle registration e.g. KL-01-AB-1234, null if absent), ' +
+    'origin, destination, travel_date (YYYY-MM-DD), ticket_no, depot, service_type ' +
+    '(e.g. SUPER FAST / EXPRESS / FAST PASSENGER, null if absent). ' +
+    'Use null for anything not printed. No commentary, JSON only.';
+  try {
+    const r = await fetch(GROQ_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model: groqModel(),
+        temperature: 0,
+        max_tokens: 300,
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: `data:${mime};base64,${b64}` } },
+            ],
+          },
+        ],
+      }),
+    });
+    if (!r.ok) return { ok: false, reason: `groq ${r.status}` };
+    const body = await r.json();
+    const raw = String(body?.choices?.[0]?.message?.content ?? '{}');
+    const parsed = JSON.parse(raw) as Partial<TicketExtract>;
+    const s = (v: unknown) => (typeof v === 'string' && v.trim() && v !== 'null' ? v.trim() : null);
+    return {
+      ok: true,
+      data: {
+        bus_number: s(parsed.bus_number),
+        origin: s(parsed.origin),
+        destination: s(parsed.destination),
+        travel_date: s(parsed.travel_date),
+        ticket_no: s(parsed.ticket_no),
+        depot: s(parsed.depot),
+        service_type: s(parsed.service_type),
+      },
+    };
+  } catch (e) {
+    return { ok: false, reason: e instanceof Error ? e.message : 'groq failed' };
+  }
+}
+
+/** Voice note -> transcript via Sarvam STT. Slot: SARVAM_API_KEY. */
+async function transcribeVoice(bytes: Uint8Array, mime: string): Promise<{ ok: true; text: string } | { ok: false; reason: string }> {
+  const key = Deno.env.get('SARVAM_API_KEY');
+  if (!key) return { ok: false, reason: 'SARVAM_API_KEY not set' };
+  try {
+    const form = new FormData();
+    form.append('file', new File([bytes], 'voice.ogg', { type: mime || 'audio/ogg' }));
+    form.append('model', 'saaras:v3');
+    form.append('mode', 'transcribe');
+    const r = await fetch('https://api.sarvam.ai/speech-to-text', {
+      method: 'POST',
+      headers: { 'api-subscription-key': key },
+      body: form,
+    });
+    if (!r.ok) return { ok: false, reason: `sarvam ${r.status}` };
+    const body = await r.json();
+    const text = String(body.transcript ?? '').trim();
+    return text ? { ok: true, text } : { ok: false, reason: 'empty transcript' };
+  } catch (e) {
+    return { ok: false, reason: e instanceof Error ? e.message : 'sarvam failed' };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Keyboards
 // ---------------------------------------------------------------------------
 type Kb = { inline_keyboard: { text: string; callback_data: string }[][] };
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
 
 const menuKb: Kb = {
   inline_keyboard: [
@@ -179,15 +301,26 @@ const categoryKb: Kb = {
   ],
 };
 
-function chunk<T>(items: T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
-  return out;
-}
-
 const cancelKb: Kb = {
   inline_keyboard: [[{ text: '❌ Cancel', callback_data: 'cancel' }]],
 };
+
+const ticketKb: Kb = {
+  inline_keyboard: [
+    [{ text: '⏭️ Skip — no ticket photo', callback_data: 'skip_ticket' }],
+    [{ text: '❌ Cancel', callback_data: 'cancel' }],
+  ],
+};
+
+function ticketReviewKb(): Kb {
+  return {
+    inline_keyboard: [
+      [{ text: '✅ Details look right', callback_data: 'ticket_ok' }],
+      [{ text: '⏭️ Ignore & continue manually', callback_data: 'ticket_fix' }],
+      [{ text: '❌ Cancel', callback_data: 'cancel' }],
+    ],
+  };
+}
 
 function routeKb(hits: { id: string; name: string }[], raw: string): Kb {
   const rows = hits.slice(0, 5).map((h) => ({
@@ -197,17 +330,24 @@ function routeKb(hits: { id: string; name: string }[], raw: string): Kb {
   return {
     inline_keyboard: [
       ...(rows.length ? chunk(rows, 1) : []),
-      [{ text: `✅ Use exactly what I typed: "${raw.slice(0, 24)}"`, callback_data: 'route:raw' }],
+      [{ text: `✅ Use my text: "${raw.slice(0, 24)}"`, callback_data: 'route:raw' }],
       [{ text: '⏭️ Skip (file without route)', callback_data: 'route:skip' }],
       [{ text: '❌ Cancel', callback_data: 'cancel' }],
     ],
   };
 }
 
+const proofKb: Kb = {
+  inline_keyboard: [
+    [{ text: '➡️ Done — continue', callback_data: 'proof:done' }],
+    [{ text: '❌ Cancel', callback_data: 'cancel' }],
+  ],
+};
+
 const confirmKb: Kb = {
   inline_keyboard: [
     [{ text: '✅ Submit complaint', callback_data: 'submit' }],
-    [{ text: '✏️ Edit answers', callback_data: 'edit' }],
+    [{ text: '✏️ Edit details', callback_data: 'edit' }],
     [{ text: '❌ Cancel', callback_data: 'cancel' }],
   ],
 };
@@ -215,8 +355,8 @@ const confirmKb: Kb = {
 const editMenuKb: Kb = {
   inline_keyboard: [
     [{ text: 'Category', callback_data: 'edit:cat' }, { text: 'Route', callback_data: 'edit:route' }],
-    [{ text: 'Description', callback_data: 'edit:desc' }],
-    [{ text: '⬅️ Back to summary', callback_data: 'back' }],
+    [{ text: 'Bus number', callback_data: 'edit:bus' }, { text: 'Description', callback_data: 'edit:desc' }],
+    [{ text: '⬅️ Back to report', callback_data: 'back' }],
   ],
 };
 
@@ -241,23 +381,47 @@ const convClaim = (sb: ReturnType<typeof client>, chatId: number, from: string, 
   sb.rpc('tg_conv_claim', { p_chat_id: chatId, p_from: from, p_to: to, p_data: d })
     .then((r: { data: unknown }) => Array.isArray(r.data) ? r.data[0] : r.data === true);
 
+type EvidenceItem = { file_id: string; mime: string; size: number; path: string };
+
+function evidenceOf(d: Record<string, unknown>): EvidenceItem[] {
+  return Array.isArray(d.evidence) ? (d.evidence as EvidenceItem[]) : [];
+}
+
 // ---------------------------------------------------------------------------
 // Flow steps
 // ---------------------------------------------------------------------------
-function confirmText(d: Record<string, unknown>): string {
+function fmtRoute(d: Record<string, unknown>): string {
+  if (typeof d.route_name === 'string' && d.route_name) return d.route_name;
+  if (typeof d.route_text === 'string' && d.route_text) return d.route_text;
+  return '(no route)';
+}
+
+function reportText(d: Record<string, unknown>): string {
   const cat = typeof d.category === 'string' ? CATEGORY_LABELS.get(d.category) ?? d.category : '—';
-  const route = typeof d.route_name === 'string'
-    ? d.route_name
-    : typeof d.route_text === 'string' && d.route_text
-    ? d.route_text
-    : '(no route)';
+  const bus = typeof d.bus_number === 'string' && d.bus_number ? d.bus_number : '—';
+  const date = typeof d.travel_date === 'string' && d.travel_date ? d.travel_date : '—';
+  const n = evidenceOf(d).length;
   const desc = typeof d.description === 'string' ? d.description : '';
   return (
-    '🧾 Please confirm your complaint:\n\n' +
+    '🧾 FINAL REPORT — please review:\n\n' +
     `• Category: ${cat}\n` +
-    `• Route: ${route}\n` +
-    `• Description: ${desc}\n\n` +
-    'Tap Submit to file it, Edit to change an answer, or Cancel.'
+    `• Route: ${fmtRoute(d)}\n` +
+    `• Bus number: ${bus}\n` +
+    `• Travel date: ${date}\n` +
+    `• Problem: ${desc}\n` +
+    `• Proof attached: ${n} file${n === 1 ? '' : 's'}\n\n` +
+    'Tap Submit to file it (it appears on the website instantly), Edit to change, or Cancel.'
+  );
+}
+
+async function askTicket(sb: ReturnType<typeof client>, chatId: number, d: Record<string, unknown> = {}) {
+  await convSave(sb, chatId, 'ask_ticket', d);
+  await tgSend(
+    chatId,
+    '📸 Send a photo of your ticket.\n\n' +
+      'I will read the bus number, route and date from it automatically ' +
+      '— it also serves as proof that you travelled. No ticket handy? Skip.',
+    ticketKb,
   );
 }
 
@@ -270,15 +434,17 @@ async function askRoute(sb: ReturnType<typeof client>, chatId: number, d: Record
   await convSave(sb, chatId, 'ask_route', d);
   await tgSend(
     chatId,
-    'Which route? Send start and destination (e.g. "Guruvayur to Kozhikode").\n\n' +
-      'I will suggest matching KSRTC routes — or skip if you are not sure.',
+    'Which route? Send start and destination (e.g. "Guruvayur to Kozhikode") ' +
+      '— I will suggest matching KSRTC routes.',
+    cancelKb,
   );
 }
 
-async function suggestRoutes(sb: ReturnType<typeof client>, chatId: number, text: string) {
+async function suggestRoutes(sb: ReturnType<typeof client>, chatId: number, text: string, d: Record<string, unknown>) {
   const { data } = await sb.rpc('app_list_routes', { p_q: text, p_limit: 5 });
   const items = (Array.isArray(data) ? data[0]?.items : data?.items) ?? [];
   const clean = items.filter((i: { name?: string }) => typeof i.name === 'string' && i.name);
+  await convSave(sb, chatId, 'pick_route', { ...d, route_text: text });
   await tgSend(
     chatId,
     clean.length
@@ -290,12 +456,27 @@ async function suggestRoutes(sb: ReturnType<typeof client>, chatId: number, text
 
 async function askDescription(sb: ReturnType<typeof client>, chatId: number, d: Record<string, unknown>) {
   await convSave(sb, chatId, 'ask_description', d);
-  await tgSend(chatId, 'Describe what happened (at least 10 characters).', cancelKb);
+  await tgSend(
+    chatId,
+    '🎙️ Now describe the problem (text or hold to record a voice note — min 10 characters).',
+    cancelKb,
+  );
+}
+
+async function askProof(sb: ReturnType<typeof client>, chatId: number, d: Record<string, unknown>) {
+  await convSave(sb, chatId, 'ask_proof', d);
+  const n = evidenceOf(d).length;
+  await tgSend(
+    chatId,
+    `📎 Attach more proof if you have it — photos or short videos of the issue` +
+      `${n ? ` (${n} attached so far)` : ' (optional)'}. Then tap Done.`,
+    proofKb,
+  );
 }
 
 async function showConfirm(sb: ReturnType<typeof client>, chatId: number, d: Record<string, unknown>) {
   await convSave(sb, chatId, 'confirm', d);
-  await tgSend(chatId, confirmText(d), confirmKb);
+  await tgSend(chatId, reportText(d), confirmKb);
 }
 
 async function showEditMenu(sb: ReturnType<typeof client>, chatId: number, d: Record<string, unknown>) {
@@ -303,15 +484,40 @@ async function showEditMenu(sb: ReturnType<typeof client>, chatId: number, d: Re
   await tgSend(chatId, 'What should we change?', editMenuKb);
 }
 
+/** Download a Telegram file into the private evidence bucket. Mime and size
+ *  always come from the actual download (never trusted from the update). */
+async function storeEvidence(sb: ReturnType<typeof client>, chatId: number, fileId: string):
+  Promise<EvidenceItem | { error: string }> {
+  const dl = await tgDownloadFile(fileId);
+  if ('error' in dl) return dl;
+  const mime = dl.mime || 'application/octet-stream';
+  const ext = mime.includes('mp4') ? 'mp4' : mime.includes('webm') ? 'webm'
+    : mime.includes('png') ? 'png' : mime.includes('webp') ? 'webp'
+    : mime.includes('pdf') ? 'pdf' : 'jpg';
+  const path = `telegram/${chatId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const up = await sb.storage.from('evidence').upload(path, dl.bytes, {
+    contentType: mime, upsert: false,
+  });
+  if (up.error) return { error: 'storage upload failed' };
+  return { file_id: fileId, mime, size: dl.bytes.length, path };
+}
+
 async function submitComplaint(sb: ReturnType<typeof client>, chatId: number, d: Record<string, unknown>) {
   // ponytail: conditional claim — double-tap finds a non-confirm state and is ignored, no duplicate complaint
   if (!(await convClaim(sb, chatId, 'confirm', 'creating', d))) return;
+  const evidence = evidenceOf(d);
   const { data, error } = await sb.rpc('app_file_complaint', {
     p_category: String(d.category ?? 'other'),
     p_description: String(d.description ?? ''),
     p_route_id: typeof d.route_id === 'string' ? d.route_id : null,
     p_route_text: typeof d.route_text === 'string' && d.route_text ? d.route_text : null,
+    p_bus_number: typeof d.bus_number === 'string' ? d.bus_number : null,
     p_telegram_chat_id: chatId,
+    p_travel_date: typeof d.travel_date === 'string' && d.travel_date ? d.travel_date : null,
+    p_ticket_extracted: (d.ticket ?? null) as Record<string, unknown> | null,
+    p_evidence: evidence.map((e) => ({
+      storage_path: e.path, mime_type: e.mime, size_bytes: e.size, telegram_file_id: e.file_id,
+    })),
   });
   if (error || !data) {
     console.error('telegram file failed', error);
@@ -323,10 +529,76 @@ async function submitComplaint(sb: ReturnType<typeof client>, chatId: number, d:
   const out = Array.isArray(data) ? data[0] : data;
   await tgSend(
     chatId,
-    `✅ Filed ${out.reference_id}` +
-      `${out.depot ? ` — routed to ${out.depot} depot` : ' — sent for manual triage'}.` +
-      `\n\nTrack it here: /track ${out.reference_id}\nYour complaints: /my`,
+    '✅ Complaint filed and live on the website.\n\n' +
+      `🔖 Reference: ${out.reference_id}\n` +
+      `🏢 Depot: ${out.depot ?? 'manual triage'}\n` +
+      `📎 Proof stored: ${out.evidence_count ?? 0}\n` +
+      `⏱️ SLA due: ${out.sla_due_at ? new Date(out.sla_due_at).toISOString().slice(0, 16).replace('T', ' ') + ' UTC' : '—'}\n\n` +
+      `Track: /track ${out.reference_id}\nYour complaints: /my`,
     menuKb,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Ticket handling (photo -> Groq -> review)
+// ---------------------------------------------------------------------------
+function ticketSummary(t: TicketExtract): string {
+  const lines = [
+    t.bus_number ? `• Bus: ${t.bus_number}` : null,
+    t.origin || t.destination ? `• Route: ${t.origin ?? '?'} → ${t.destination ?? '?'}` : null,
+    t.travel_date ? `• Date: ${t.travel_date}` : null,
+    t.ticket_no ? `• Ticket: ${t.ticket_no}` : null,
+    t.service_type ? `• Service: ${t.service_type}` : null,
+    t.depot ? `• Depot: ${t.depot}` : null,
+  ].filter(Boolean);
+  return lines.length ? lines.join('\n') : '(nothing readable)';
+}
+
+async function handleTicketPhoto(
+  sb: ReturnType<typeof client>, chatId: number, conv: Conv, fileId: string,
+): Promise<void> {
+  await tgSend(chatId, '🔎 Reading your ticket…', undefined);
+  const dl = await tgDownloadFile(fileId);
+  if ('error' in dl) {
+    await tgSend(chatId, `⚠️ Could not fetch that file (${dl.error}). Send the photo again or skip.`, ticketKb);
+    return;
+  }
+  // The ticket photo is proof of travel: store it BEFORE extraction so it is
+  // kept even if the ML slot is empty or fails.
+  const started = Date.now();
+  const stored = await storeEvidence(sb, chatId, fileId);
+  const kept = 'error' in stored ? [] : [stored];
+  const d: Record<string, unknown> = {
+    ...conv.data,
+    evidence: [...evidenceOf(conv.data), ...kept],
+  };
+  const ex = await extractTicketWithGroq(dl.bytes, dl.mime);
+  if (!ex.ok) {
+    // Slot empty or call failed: fail-soft, flow continues manually.
+    await tgSend(
+      chatId,
+      `ℹ️ Auto-read unavailable (${ex.reason}).` +
+        (Deno.env.get('GROQ_API_KEY') ? ' The photo is attached as proof.' : ' Add GROQ_API_KEY as a function secret to enable it.') +
+        '\n\nContinuing manually — your photo is kept as proof.',
+      undefined,
+    );
+    await askCategory(sb, chatId, d);
+    return;
+  }
+  const t = ex.data;
+  await convSave(sb, chatId, 'ticket_review', {
+    ...d,
+    ticket: t,
+    bus_number: t.bus_number ?? conv.data.bus_number ?? null,
+    travel_date: t.travel_date ?? conv.data.travel_date ?? null,
+    route_text: t.origin && t.destination ? `${t.origin} to ${t.destination}` : conv.data.route_text ?? null,
+  });
+  await tgSend(
+    chatId,
+    `🪄 Read your ticket in ${((Date.now() - started) / 1000).toFixed(1)}s — saved as proof of travel:\n\n` +
+      ticketSummary(t) +
+      '\n\nCheck these details:',
+    ticketReviewKb(),
   );
 }
 
@@ -337,34 +609,69 @@ async function handleFlow(
   sb: ReturnType<typeof client>,
   chatId: number,
   text: string | undefined,
+  media: { photoFileId?: string; videoFileId?: string; videoMime?: string; voiceFileId?: string; voiceMime?: string } | undefined,
 ): Promise<boolean> {
   const conv = await convGet(sb, chatId);
+  const d0 = conv.data;
   const value = (text ?? '').trim();
 
   switch (conv.state) {
+    case 'ask_ticket': {
+      if (media?.photoFileId) { await handleTicketPhoto(sb, chatId, conv, media.photoFileId); return true; }
+      await tgSend(chatId, 'Send a ticket photo, or tap Skip 👆', ticketKb);
+      return true;
+    }
+
+    case 'ticket_review': {
+      if (media?.photoFileId) { await handleTicketPhoto(sb, chatId, conv, media.photoFileId); return true; }
+      await tgSend(chatId, 'Tap “Details look right” to continue, or Ignore & continue manually.', ticketReviewKb());
+      return true;
+    }
+
     case 'ask_category': {
-      // Free text here is treated as an early route hint only if it looks like
-      // a route; otherwise nudge back to the buttons.
+      if (media?.photoFileId) { await handleTicketPhoto(sb, chatId, conv, media.photoFileId); return true; }
       if (value && !value.startsWith('/')) {
+        // Typed text here: treat as route hint, guess a category, jump ahead.
         const cat = guessCategory(value);
-        await suggestRoutes(sb, chatId, value);
-        await convSave(sb, chatId, 'ask_route', { ...conv.data, category: cat });
+        await suggestRoutes(sb, chatId, value, { ...d0, category: cat });
         return true;
       }
       await tgSend(chatId, 'Please tap one of the categories 👆', categoryKb);
       return true;
     }
 
+    case 'pick_route':
     case 'ask_route': {
+      if (media?.photoFileId) { await handleTicketPhoto(sb, chatId, conv, media.photoFileId); return true; }
       if (!value || value.startsWith('/')) {
         await tgSend(chatId, 'Send your route as text (e.g. "Adoor to Ernakulam") or tap Skip.', cancelKb);
         return true;
       }
-      await suggestRoutes(sb, chatId, value);
+      await suggestRoutes(sb, chatId, value, d0);
       return true;
     }
 
     case 'ask_description': {
+      if (media?.voiceFileId) {
+        // Sarvam slot: voice note -> text into the description (fail-soft).
+        const meta = await tgDownloadFile(media.voiceFileId);
+        if (!('error' in meta)) {
+          const st = await transcribeVoice(meta.bytes, meta.mime);
+          if (st.ok && st.text.replace(/\s/g, '').length >= 10) {
+            await showConfirm(sb, chatId, { ...d0, description: `${value ? value + ' ' : ''}${st.text}`.trim() });
+            return true;
+          }
+          await tgSend(chatId, `🎙️ Voice transcription unavailable (${st.reason}). Please type it instead.`, cancelKb);
+          return true;
+        }
+      }
+      if (media?.photoFileId) {
+        const stored = await storeEvidence(sb, chatId, media.photoFileId);
+        const dd = 'error' in stored ? d0 : { ...d0, evidence: [...evidenceOf(d0), stored] };
+        await tgSend(chatId, '📷 Saved as proof. Now describe the problem in text.', cancelKb);
+        await convSave(sb, chatId, 'ask_description', dd);
+        return true;
+      }
       if (!value || value.startsWith('/')) {
         await tgSend(chatId, 'Please describe what happened (at least 10 characters).', cancelKb);
         return true;
@@ -373,18 +680,41 @@ async function handleFlow(
         await tgSend(chatId, `That is ${value.length} characters — a little more detail helps (min 10).`, cancelKb);
         return true;
       }
-      await showConfirm(sb, chatId, { ...conv.data, description: value });
+      await askProof(sb, chatId, { ...d0, description: value });
+      return true;
+    }
+
+    case 'ask_proof': {
+      if (media?.photoFileId || media?.videoFileId) {
+        const stored = await storeEvidence(sb, chatId, media.photoFileId ?? media.videoFileId!);
+        if ('error' in stored) {
+          await tgSend(chatId, `⚠️ Could not store that file (${stored.error}). Try again or tap Done.`, proofKb);
+          return true;
+        }
+        await askProof(sb, chatId, { ...d0, evidence: [...evidenceOf(d0), stored] });
+        return true;
+      }
+      await tgSend(chatId, 'Attach photos/videos, or tap “Done — continue” 👆', proofKb);
       return true;
     }
 
     case 'confirm': {
-      if (/^(yes|submit)$/i.test(value)) return (await submitComplaint(sb, chatId, conv.data)), true;
+      if (/^(yes|submit)$/i.test(value)) return (await submitComplaint(sb, chatId, d0)), true;
       if (/^no$/i.test(value)) {
         await convClear(sb, chatId);
         await tgSend(chatId, 'Cancelled. Send /complain whenever you are ready.', menuKb);
         return true;
       }
-      await tgSend(chatId, confirmText(conv.data), confirmKb);
+      await tgSend(chatId, reportText(d0), confirmKb);
+      return true;
+    }
+
+    case 'edit_bus': {
+      if (!value || value.startsWith('/')) {
+        await tgSend(chatId, 'Send the bus number as text (e.g. KL-15-A-1234).', cancelKb);
+        return true;
+      }
+      await showConfirm(sb, chatId, { ...d0, bus_number: value });
       return true;
     }
 
@@ -403,50 +733,66 @@ async function handleCallback(sb: ReturnType<typeof client>, cb: {
   if (!chatId || !cb.data) return tgAnswer(cb.id);
   await tgAnswer(cb.id);
   const conv = await convGet(sb, chatId);
+  const d = conv.data;
   const [tag, arg1, arg2] = cb.data.split(':');
 
   switch (tag) {
-    case 'flow': // menu: file a complaint
-      await askCategory(sb, chatId, {});
+    case 'flow':
+      await askTicket(sb, chatId, {});
       return { status: 'ok' };
 
-    case 'cat': {
+    case 'skip_ticket':
+      await askCategory(sb, chatId, d);
+      return { status: 'ok' };
+
+    case 'ticket_ok': {
+      // Route from the extracted origin/destination via the dataset.
+      const hint = typeof d.route_text === 'string' ? d.route_text : '';
+      if (hint) await suggestRoutes(sb, chatId, hint, d);
+      else await askCategory(sb, chatId, d);
+      return { status: 'ok' };
+    }
+
+    case 'ticket_fix':
+      // Keep photo as proof, drop the extracted fields, continue manually.
+      await askCategory(sb, chatId, { ...d, bus_number: null, travel_date: null, ticket: null, route_text: null });
+      return { status: 'ok' };
+
+    case 'cat':
       if (!CATEGORY_LABELS.has(arg1 ?? '')) return { status: 'ignored' };
-      await askRoute(sb, chatId, { ...conv.data, category: arg1 });
+      if (typeof d.route_text === 'string' && d.route_text) await suggestRoutes(sb, chatId, d.route_text, { ...d, category: arg1 });
+      else await askRoute(sb, chatId, { ...d, category: arg1 });
       return { status: 'ok' };
-    }
 
-    case 'route': {
-      if (arg1 === 'raw') {
-        // route_text was saved when the user typed it; fall back to 'Telegram'
-        const d = { ...conv.data, route_id: null };
-        await askDescription(sb, chatId, d);
-      } else if (arg1 === 'skip') {
-        await askDescription(sb, chatId, { ...conv.data, route_id: null, route_text: 'Telegram' });
-      } else if (arg1) {
-        await askDescription(sb, chatId, {
-          ...conv.data, route_id: arg1, route_name: arg2 ?? 'Selected route', route_text: null,
-        });
-      } else {
-        await askRoute(sb, chatId, conv.data);
-      }
+    case 'route':
+      if (arg1 === 'raw') await askDescription(sb, chatId, { ...d, route_id: null });
+      else if (arg1 === 'skip') await askDescription(sb, chatId, { ...d, route_id: null, route_text: 'Telegram' });
+      else if (arg1) await askDescription(sb, chatId, { ...d, route_id: arg1, route_name: arg2 ?? 'Selected route' });
+      else await askRoute(sb, chatId, d);
       return { status: 'ok' };
-    }
+
+    case 'proof':
+      await showConfirm(sb, chatId, d);
+      return { status: 'ok' };
 
     case 'submit':
-      await submitComplaint(sb, chatId, conv.data);
+      await submitComplaint(sb, chatId, d);
       return { status: 'ok' };
 
     case 'edit':
-      await showEditMenu(sb, chatId, conv.data);
+      await showEditMenu(sb, chatId, d);
       return { status: 'ok' };
 
     case 'back':
-      await showConfirm(sb, chatId, conv.data);
+      await showConfirm(sb, chatId, d);
       return { status: 'ok' };
 
     case 'my':
       await sendMyComplaints(sb, chatId);
+      return { status: 'ok' };
+
+    case 'help':
+      await tgSend(chatId, HELP, menuKb);
       return { status: 'ok' };
 
     case 'cancel':
@@ -459,14 +805,19 @@ async function handleCallback(sb: ReturnType<typeof client>, cb: {
   }
 }
 
-// ponytail: 'edit:cat' | 'edit:route' | 'edit:desc' share the 'edit' tag with
-// the edit-menu opener — disambiguate by the colon arg before dispatching.
+// ponytail: 'edit:cat|route|bus|desc' share the 'edit' tag with the menu
+// opener — disambiguate by the colon arg before dispatching.
 async function handleEditArg(sb: ReturnType<typeof client>, chatId: number, arg: string | undefined): Promise<boolean> {
   if (!arg) return false;
   const conv = await convGet(sb, chatId);
-  if (arg === 'cat') await askCategory(sb, chatId, conv.data);
-  if (arg === 'route') await askRoute(sb, chatId, { ...conv.data, route_id: null, route_name: null, route_text: null });
-  if (arg === 'desc') await askDescription(sb, chatId, conv.data);
+  const d = conv.data;
+  if (arg === 'cat') await askCategory(sb, chatId, d);
+  if (arg === 'route') await askRoute(sb, chatId, { ...d, route_id: null, route_name: null, route_text: null });
+  if (arg === 'bus') {
+    await convSave(sb, chatId, 'edit_bus', d);
+    await tgSend(chatId, 'Send the bus number as text (or a corrected ticket photo).', cancelKb);
+  }
+  if (arg === 'desc') await askDescription(sb, chatId, { ...d, description: null });
   return true;
 }
 
@@ -488,6 +839,24 @@ async function sendMyComplaints(sb: ReturnType<typeof client>, chatId: number) {
 // ---------------------------------------------------------------------------
 let botConfigured = false;
 
+function mediaOf(msg: Record<string, any>): {
+  photoFileId?: string; videoFileId?: string; videoMime?: string;
+  voiceFileId?: string; voiceMime?: string; docFileId?: string; docMime?: string;
+} {
+  const out: ReturnType<typeof mediaOf> = {};
+  const photo = Array.isArray(msg?.photo) ? msg.photo[msg.photo.length - 1] : null;
+  if (photo?.file_id) out.photoFileId = photo.file_id;
+  if (msg?.video?.file_id) { out.videoFileId = msg.video.file_id; out.videoMime = msg.video.mime_type; }
+  if (msg?.video_note?.file_id) { out.videoFileId = msg.video_note.file_id; out.videoMime = 'video/mp4'; }
+  if (msg?.voice?.file_id) { out.voiceFileId = msg.voice.file_id; out.voiceMime = msg.voice.mime_type; }
+  if (msg?.document?.file_id && typeof msg.document.mime_type === 'string'
+      && (msg.document.mime_type.startsWith('image/') || msg.document.mime_type === 'application/pdf')) {
+    out.docFileId = msg.document.file_id; out.docMime = msg.document.mime_type;
+    if (msg.document.mime_type.startsWith('image/')) out.photoFileId = msg.document.file_id;
+  }
+  return out;
+}
+
 async function handleTelegram(req: Request): Promise<Response> {
   const expected = Deno.env.get('TELEGRAM_SECRET_TOKEN');
   if (expected) {
@@ -505,7 +874,6 @@ async function handleTelegram(req: Request): Promise<Response> {
   // --- button taps ---------------------------------------------------------
   if (payload.callback_query) {
     const cb = payload.callback_query;
-    // 'edit:cat|route|desc' needs the arg-aware path; other tags go straight.
     if (typeof cb.data === 'string' && cb.data.startsWith('edit:')) {
       await tgAnswer(cb.id);
       const chatId = cb.message?.chat?.id;
@@ -521,44 +889,34 @@ async function handleTelegram(req: Request): Promise<Response> {
   const chatId: number | undefined = msg?.chat?.id;
   const text: string | undefined = (msg?.text ?? '').trim() || undefined;
   if (chatId == null) return json({ status: 'ignored' });
+  const media = mediaOf(msg);
 
   // Commands (support /command@botname)
   const cmd = text?.match(/^\/([a-z_]+)(?:@[A-Za-z0-9_]+)?(?:\s+(.*))?$/);
-  if (cmd) {
+  if (cmd && !media.photoFileId) {
     const name = cmd[1].toLowerCase();
     const arg = (cmd[2] ?? '').trim();
 
     if (name === 'start') {
       await tgSend(
         chatId,
-        '🚌 Welcome to SAMADHAN!\n\nReport a KSRTC issue in under a minute — ' +
-          'a few taps, no forms. Your complaint is routed to the right depot automatically.',
+        '🚌 Welcome to SAMADHAN!\n\nReport a KSRTC issue in under a minute: ' +
+          'upload your ticket photo, I read the details automatically, you add ' +
+          'the problem — done. It lands on the depot dashboard instantly.',
         menuKb,
       );
       return json({ status: 'ok' });
     }
-    if (name === 'help') {
-      await tgSend(chatId, HELP, menuKb);
-      return json({ status: 'ok' });
-    }
-    if (name === 'complain') {
-      await askCategory(sb, chatId, {});
-      return json({ status: 'ok' });
-    }
+    if (name === 'help') { await tgSend(chatId, HELP, menuKb); return json({ status: 'ok' }); }
+    if (name === 'complain') { await askTicket(sb, chatId, {}); return json({ status: 'ok' }); }
     if (name === 'cancel') {
       await convClear(sb, chatId);
       await tgSend(chatId, 'Cancelled — nothing was filed.', menuKb);
       return json({ status: 'ok' });
     }
-    if (name === 'my') {
-      await sendMyComplaints(sb, chatId);
-      return json({ status: 'ok' });
-    }
+    if (name === 'my') { await sendMyComplaints(sb, chatId); return json({ status: 'ok' }); }
     if (name === 'track') {
-      if (!arg) {
-        await tgSend(chatId, 'Send: /track KSRTC-XXXXXX');
-        return json({ status: 'ok' });
-      }
+      if (!arg) { await tgSend(chatId, 'Send: /track KSRTC-XXXXXX'); return json({ status: 'ok' }); }
       const { data, error } = await sb.rpc('app_track_complaint', { p_ref: arg });
       const reply = error
         ? 'Tracking failed — try the web /track page.'
@@ -571,10 +929,17 @@ async function handleTelegram(req: Request): Promise<Response> {
     // unknown command: fall through to flow handling
   }
 
-  // Active conversation consumes the text
-  if (await handleFlow(sb, chatId, text)) return json({ status: 'ok' });
+  // Active conversation consumes everything (text, photos, videos, voice)
+  if (await handleFlow(sb, chatId, text, media)) return json({ status: 'ok' });
 
-  // Bare text outside a flow: legacy pipe format still works; otherwise menu.
+  // No flow: a photo outside the flow invites the ticket flow.
+  if (media.photoFileId) {
+    await askTicket(sb, chatId, {});
+    await tgSend(chatId, 'Send that photo again now and I will read it as your ticket.');
+    return json({ status: 'ok' });
+  }
+
+  // Bare text outside a flow: legacy pipe format still works; otherwise offer flow.
   const parts = (text ?? '').split('|').map((p) => p.trim());
   if (parts.length === 3) {
     const raw = parts[0].toLowerCase().replace(/ /g, '_');
@@ -599,10 +964,8 @@ async function handleTelegram(req: Request): Promise<Response> {
   }
 
   if (text && text.length >= 10) {
-    // Looks like a complaint description: start the flow with it pre-filled.
     const cat = guessCategory(text);
-    await askCategory(sb, chatId, { description: text, category: cat });
-    await tgSend(chatId, `I guessed the category as ${CATEGORY_LABELS.get(cat) ?? cat} — confirm or change it 👆`);
+    await askTicket(sb, chatId, { description: text, category: cat });
     return json({ status: 'ok' });
   }
 
@@ -611,7 +974,7 @@ async function handleTelegram(req: Request): Promise<Response> {
 }
 
 // ---------------------------------------------------------------------------
-// Voice (Sarvam STT) — API key stays server-side
+// Voice (Sarvam STT) — HTTP endpoint for the web app; key stays server-side
 // ---------------------------------------------------------------------------
 async function handleVoiceTranscribe(req: Request): Promise<Response> {
   const key = Deno.env.get('SARVAM_API_KEY');
@@ -657,6 +1020,36 @@ async function handleVoiceTranscribe(req: Request): Promise<Response> {
   });
 }
 
+/** Multipart upload -> private evidence bucket (web form). Returns storage_path. */
+async function handleUpload(req: Request): Promise<Response> {
+  const sb = client();
+  let form: FormData;
+  try {
+    form = await req.formData();
+  } catch {
+    return json({ detail: 'expected multipart form' }, 422);
+  }
+  const file = form.get('file');
+  if (!(file instanceof File) || file.size === 0) return json({ detail: 'empty file' }, 422);
+  const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf',
+    'video/mp4', 'video/webm', 'video/quicktime'];
+  if (!allowed.includes(file.type)) return json({ detail: 'unsupported file type' }, 422);
+  if (file.size > 20 * 1024 * 1024) return json({ detail: 'file too large (max 20 MB)' }, 422);
+  const ext = file.type.includes('png') ? 'png' : file.type.includes('webp') ? 'webp'
+    : file.type.includes('heic') ? 'heic' : file.type.includes('pdf') ? 'pdf'
+    : file.type.includes('mp4') ? 'mp4' : file.type.includes('webm') ? 'webm'
+    : file.type.includes('quicktime') ? 'mov' : 'jpg';
+  const path = `web/${new Date().toISOString().slice(0, 10)}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const up = await sb.storage.from('evidence').upload(path, await file.arrayBuffer(), {
+    contentType: file.type, upsert: false,
+  });
+  if (up.error) {
+    console.error('upload failed', up.error);
+    return json({ detail: 'upload failed' }, 500);
+  }
+  return json({ storage_path: path, mime_type: file.type, size_bytes: file.size }, 201);
+}
+
 // ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
@@ -677,7 +1070,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
   try {
     // -- health ----------------------------------------------------------
     if (path === '/health' || path === '/api/v1/health') {
-      return json({ status: 'ok', v: 3 });
+      return json({
+        status: 'ok',
+        v: 4,
+        slots: {
+          groq: Boolean(Deno.env.get('GROQ_API_KEY')),
+          sarvam: Boolean(Deno.env.get('SARVAM_API_KEY')),
+          telegram: Boolean(Deno.env.get('TELEGRAM_BOT_TOKEN')),
+        },
+      });
     }
 
     // -- complaints ------------------------------------------------------
@@ -693,6 +1094,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
         p_location_text: body.location_text ?? null,
         p_contact_phone: body.contact_phone ?? null,
         p_priority: body.priority ?? 'normal',
+        p_travel_date: body.travel_date ?? null,
+        p_ticket_extracted: body.ticket_extracted ?? null,
+        p_evidence: body.evidence ?? null,
       });
       if (error) return mapDbError(error);
       return json(data, 201);
@@ -706,6 +1110,27 @@ Deno.serve(async (req: Request): Promise<Response> => {
       if (error) return mapDbError(error);
       if (!data) return json({ detail: 'unknown reference ID' }, 404);
       return json(data);
+    }
+
+    // -- uploads (web form evidence) --------------------------------------
+    if (path === '/api/v1/uploads' && req.method === 'POST') {
+      return await handleUpload(req);
+    }
+
+    // -- ML: ticket extraction (Groq vision slot) --------------------------
+    if (path === '/api/v1/extract/ticket' && req.method === 'POST') {
+      let form: FormData;
+      try {
+        form = await req.formData();
+      } catch {
+        return json({ detail: 'expected multipart image' }, 422);
+      }
+      const file = form.get('file');
+      if (!(file instanceof File) || file.size === 0) return json({ detail: 'empty file' }, 422);
+      if (file.size > 20 * 1024 * 1024) return json({ detail: 'file too large' }, 422);
+      const ex = await extractTicketWithGroq(new Uint8Array(await file.arrayBuffer()), file.type || 'image/jpeg');
+      if (!ex.ok) return json({ detail: ex.reason, extracted: null }, 503);
+      return json({ extracted: ex.data });
     }
 
     // -- lookups ---------------------------------------------------------

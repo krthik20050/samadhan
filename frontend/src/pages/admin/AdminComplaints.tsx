@@ -34,8 +34,21 @@ export const AdminComplaints: React.FC = () => {
     complaintsService.getAll().then((list) => {
       if (!ignore) setComplaints(list);
     });
+    // Live sync: Telegram/web submissions land in the same tables; poll so
+    // they appear here without a manual refresh.
+    const timer = setInterval(() => {
+      complaintsService
+        .getAll()
+        .then((list) => {
+          if (!ignore) setComplaints(list);
+        })
+        .catch(() => {
+          /* transient — next tick retries */
+        });
+    }, 15000);
     return () => {
       ignore = true;
+      clearInterval(timer);
     };
   }, []);
 
