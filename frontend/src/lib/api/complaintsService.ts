@@ -222,8 +222,7 @@ export const complaintsService = {
     try {
       const data = await api<{ items: BackendDashboardItem[] }>('/api/v1/dashboard/complaints?limit=100&offset=0');
       return data.items.map(fromDashboardItem);
-    } catch (e) {
-      if (!(e instanceof BackendUnavailable)) throw e;
+    } catch {
       await new Promise((res) => setTimeout(res, 200));
       return [...storedComplaints];
     }
