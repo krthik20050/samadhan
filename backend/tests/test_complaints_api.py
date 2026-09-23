@@ -1,12 +1,19 @@
 """Phase 3 tests against the live Supabase DB. Each test deletes its own rows
 (history first — RESTRICT blocks complaint delete otherwise)."""
+import os
 import re
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.core.db import get_conn
 from app.main import app
+
+pytestmark = pytest.mark.skipif(
+    not os.getenv("DATABASE_URL"),
+    reason="live database tests require DATABASE_URL",
+)
 
 client = TestClient(app)
 REF = re.compile(r"KSRTC-\d{4}-[A-Z0-9]{6}")

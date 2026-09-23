@@ -1,3 +1,6 @@
+import os
+
+import pytest
 from fastapi.testclient import TestClient
 
 from app.core.config import get_settings
@@ -6,6 +9,11 @@ from app.services.telegram import extract_message
 from tests.test_complaints_api import cleanup  # live-DB, self-cleaning pattern
 
 c = TestClient(app)
+
+LIVE_DB = pytest.mark.skipif(
+    not os.getenv("DATABASE_URL"),
+    reason="live database tests require DATABASE_URL",
+)
 
 
 def _headers():
@@ -47,6 +55,7 @@ def test_short_text_gets_help():
     assert r.json()["complaint"] is None
 
 
+@LIVE_DB
 def test_webhook_files_complaint():
     r = _post({"message": {"chat": {"id": 999},
         "text": "overcrowding | Adoor - Ekm | Bus was severely overcrowded today"}})
