@@ -96,7 +96,7 @@ export interface NotificationLogItem {
 export interface PublicTransparencyStats {
   totalRegistered30Days: number;
   resolutionRatePercent: number;
-  avgResolutionTimeHours: number;
+  avgResolutionTimeHours: number | null;
   activeEscalationRatePercent: number;
   categoryBreakdown: { category: ComplaintCategory; count: number; percentage: number }[];
   depotBreakdown: { depotName: string; resolved: number; open: number }[];

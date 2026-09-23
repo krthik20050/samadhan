@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, Square, X, RotateCcw, AlertCircle } from 'lucide-react';
+import { Mic, Square, X, AlertCircle } from 'lucide-react';
 import { Button } from '../common/Button';
 import { VoiceWaveform } from './VoiceWaveform';
 import { useLanguage } from '../../hooks/useLanguage';
@@ -13,52 +13,6 @@ interface VoiceRecorderProps {
   }) => void;
   onCancel?: () => void;
 }
-
-// Speech recognition samples
-const DEMO_VOICE_SAMPLES = [
-  {
-    transcript:
-      'I have a cleanliness complaint about the bus travelling from Guruvayur to Kozhikode. The seats in the middle row were very dirty and had discarded trash.',
-    extracted: {
-      category: 'cleanliness' as ComplaintCategory,
-      origin: 'Guruvayur',
-      destination: 'Kozhikode',
-      via: 'Ponnani - Tirur',
-      busNumber: 'KL-15-A-4892',
-      location: 'Middle row seats',
-      description:
-        'The seats in the middle row were very dirty and had discarded trash left behind.',
-    },
-  },
-  {
-    transcript:
-      'The 8:15 AM bus from Palakkad to Thrissur was delayed by more than an hour without any announcement or crew arrival at Palakkad stand.',
-    extracted: {
-      category: 'delay_schedule' as ComplaintCategory,
-      origin: 'Palakkad',
-      destination: 'Thrissur',
-      via: 'Alathur - Vadakkencherry',
-      busNumber: 'KL-15-A-3120',
-      location: 'Palakkad Stand Bay 4',
-      description:
-        'The 8:15 AM bus was delayed by more than an hour without announcement or crew arrival.',
-    },
-  },
-  {
-    transcript:
-      'The conductor on the Kottayam to Kumily route refused to honor a valid student concession card and used harsh language at Mundakkayam stop.',
-    extracted: {
-      category: 'staff_behaviour' as ComplaintCategory,
-      origin: 'Kottayam',
-      destination: 'Kumily',
-      via: 'Mundakkayam',
-      busNumber: 'KL-15-A-5521',
-      location: 'Mundakkayam stop',
-      description:
-        'Conductor refused valid student concession card and used disrespectful language in front of passengers.',
-    },
-  },
-];
 
 export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   onTranscriptionComplete,
@@ -111,7 +65,8 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         recognition.onerror = (event: any) => {
           if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
             setIsDemoMode(true);
-            setErrorMessage('Microphone access is unavailable. You can use sample audio below to test voice reporting.');
+            setIsRecording(false);
+            setErrorMessage('Microphone access is unavailable. Voice reporting requires browser speech recognition.');
           }
         };
 
@@ -131,6 +86,10 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   }, []);
 
   const startRecording = () => {
+    if (isDemoMode || !recognitionRef.current) {
+      setErrorMessage('Voice recognition is unavailable in this browser. Please use the text complaint form.');
+      return;
+    }
     setErrorMessage(null);
     setLiveTranscript('');
     setRecordingSeconds(0);
@@ -146,32 +105,14 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       });
     }, 1000);
 
-    if (recognitionRef.current && !isDemoMode) {
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (recognitionRef.current as any).start();
-      } catch {
-        setIsDemoMode(true);
-        simulateSpeech();
-      }
-    } else {
-      simulateSpeech();
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (recognitionRef.current as any).start();
+    } catch {
+      setIsDemoMode(true);
+      setIsRecording(false);
+      setErrorMessage('Voice recognition could not be started. Please use the text complaint form.');
     }
-  };
-
-  const simulateSpeech = () => {
-    const sample = DEMO_VOICE_SAMPLES[Math.floor(Math.random() * DEMO_VOICE_SAMPLES.length)];
-    const words = sample.transcript.split(' ');
-    let currentIdx = 0;
-
-    const streamInterval = setInterval(() => {
-      currentIdx += 2;
-      if (currentIdx <= words.length) {
-        setLiveTranscript(words.slice(0, currentIdx).join(' '));
-      } else {
-        clearInterval(streamInterval);
-      }
-    }, 320);
   };
 
   const stopRecording = () => {
@@ -193,9 +134,12 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     setIsProcessing(true);
 
     setTimeout(() => {
-      const finalTranscript =
-        liveTranscript ||
-        'I have a cleanliness complaint about the bus travelling from Guruvayur to Kozhikode. The seats in the middle row were very dirty.';
+      const finalTranscript = liveTranscript.trim();
+      if (!finalTranscript) {
+        setIsProcessing(false);
+        setErrorMessage('No speech was captured. Please try again or use the text complaint form.');
+        return;
+      }
 
       const extracted = parseTranscriptIntoStructuredData(finalTranscript);
 
@@ -235,9 +179,9 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       category = 'bus_condition';
     }
 
-    let origin = 'Guruvayur';
-    let destination = 'Kozhikode';
-    let via = 'Ponnani - Tirur';
+    let origin = '';
+    let destination = '';
+    let via = '';
 
     if (lower.includes('palakkad') && lower.includes('thrissur')) {
       origin = 'Palakkad';
@@ -262,8 +206,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       origin,
       destination,
       via,
-      busNumber: 'KL-15-A-4892',
-      location: 'Inside passenger compartment',
+      location: '',
       description: text,
       audioTranscript: text,
     };
@@ -370,7 +313,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
               Example phrasing:
             </span>
             <p className="italic text-[13px] text-[var(--text-secondary)] mt-0.5">
-              “I have a cleanliness complaint about the bus travelling from Guruvayur to Kozhikode. The seats in the middle row were very dirty.”
+              “Describe the route, what happened, and where the issue occurred.”
             </p>
           </div>
         )}
@@ -378,7 +321,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 
       {/* Action Controls */}
       <div className="flex items-center gap-3 pt-2">
-        {isRecording ? (
+        {isRecording && (
           <>
             <Button
               variant="primary"
@@ -397,26 +340,6 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
               Cancel
             </Button>
           </>
-        ) : (
-          <button
-            type="button"
-            onClick={() => {
-              const sample = DEMO_VOICE_SAMPLES[0];
-              setLiveTranscript(sample.transcript);
-              setIsProcessing(true);
-              setTimeout(() => {
-                setIsProcessing(false);
-                onTranscriptionComplete({
-                  transcript: sample.transcript,
-                  extracted: sample.extracted,
-                });
-              }, 400);
-            }}
-            className="text-[13px] font-mono text-[var(--brand)] hover:underline inline-flex items-center gap-1.5 cursor-pointer"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Load sample spoken complaint</span>
-          </button>
         )}
       </div>
     </div>

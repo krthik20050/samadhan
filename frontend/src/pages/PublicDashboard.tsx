@@ -38,7 +38,7 @@ export const PublicDashboard: React.FC = () => {
             to="/admin/depot"
             className="text-[13px] font-mono text-[var(--brand)] hover:underline inline-flex items-center gap-1.5"
           >
-            <span>Inspect Depot Operations Command Sandbox</span>
+            <span>Inspect Depot Operations Command</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>

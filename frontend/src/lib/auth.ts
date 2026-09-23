@@ -6,7 +6,7 @@
  *
  * Requirements satisfied:
  * - Completely removed weak/known credentials (no hardcoded passwords)
- * - Uses environment variable (VITE_ADMIN_DEMO_PASSWORD / ADMIN_DEMO_PASSWORD)
+ * - Uses the backend auth endpoint for role assignment
  * - Ephemeral session storage with cryptographically random session tokens
  * - Role-Based Access Control separating 'admin' and 'passenger'
  * - Prevents data breaches at service and routing layers
@@ -25,16 +25,10 @@ export interface AuthUser {
 
 const STORAGE_KEY = 'samadhan_auth_session';
 // ponytail: duplicated from api/client (not imported) to avoid a module cycle.
-const API_BASE = (import.meta.env.VITE_API_URL ?? 'http://localhost:8000').replace(/\/+$/, '');
-
-/**
- * Retrieves the configured admin password from environment variables
- * (offline-demo fallback only; the backend is the real check).
- */
-function getConfiguredAdminPassword(): string {
-  // Vite exposes env variables prefixed with VITE_ to the client
-  return import.meta.env.VITE_ADMIN_DEMO_PASSWORD || '';
-}
+const API_BASE = (
+  import.meta.env.VITE_API_URL ??
+  'https://ikipstqlumypppfypdrx.supabase.co/functions/v1/api'
+).replace(/\/+$/, '');
 
 /**
  * Generates an opaque cryptographically random session token
@@ -84,9 +78,10 @@ export const authService = {
       });
       role = res.ok ? 'admin' : 'passenger';
     } catch {
-      // Backend unreachable (offline demo): fall back to the env password.
-      const adminPassword = getConfiguredAdminPassword();
-      role = adminPassword && trimmedPass === adminPassword ? 'admin' : 'passenger';
+      return {
+        success: false,
+        error: 'The backend is unavailable. Please try again when the service is online.',
+      };
     }
 
     let displayName = trimmedId;
