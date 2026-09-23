@@ -39,6 +39,8 @@ Telegram ─────────┼──> Edge Function /functions/v1/api �
 | `GET /api/v1/dashboard/complaints` | `app_dashboard_complaints` | Bearer `ADMIN_API_TOKEN` |
 | `POST /api/v1/auth/login` | — (token compare) | public |
 | `POST /api/v1/telegram/webhook` | via `app_file_complaint` / `app_track_complaint` | `X-Telegram-Bot-Api-Secret-Token` |
+| `GET /api/v1/voice/status` | — | public |
+| `POST /api/v1/voice/transcribe` | Sarvam `saaras:v3` (server-side) | public |
 
 Base URL: `https://<project-ref>.supabase.co/functions/v1/api`
 CORS is `*` (no cookies are used); staff endpoints still require the token.
@@ -56,7 +58,7 @@ Then set the function secrets (Dashboard → Edge Functions → Secrets, or CLI)
 
 ```bash
 supabase secrets set ADMIN_API_TOKEN=... TELEGRAM_BOT_TOKEN=... \
-  TELEGRAM_SECRET_TOKEN=... --project-ref ikipstqlumypppfypdrx
+  TELEGRAM_SECRET_TOKEN=... SARVAM_API_KEY=... --project-ref ikipstqlumypppfypdrx
 ```
 
 (`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are injected automatically.)
