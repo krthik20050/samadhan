@@ -53,7 +53,9 @@ Legend: `[ ]` not started, `[x]` completed.
 - [ ] Free-text -> schema adapter (pluggable, optional)
 
 ## PHASE 11 — WhatsApp (STRETCH)
-- [ ] Webhook + adapter into `POST /complaints`
+- [x] Telegram webhook + adapter (`/api/v1/telegram/webhook`, /start //track, filing; see docs/TELEGRAM.md)
+- [x] WhatsApp webhook + adapter (same complaint flow)
+- [ ] Public HTTPS + setWebhook registration (needs deployed backend or tunnel)
 
 ## PHASE 12 — Ticket OCR/QR (STRETCH)
 - [ ] Prefill bus/route from scan

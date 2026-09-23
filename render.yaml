@@ -22,3 +22,9 @@ services:
         sync: false
       - key: WHATSAPP_VERIFY_TOKEN
         sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_SECRET_TOKEN
+        sync: false
+      - key: ADMIN_API_TOKEN
+        sync: false
