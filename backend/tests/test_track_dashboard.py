@@ -1,8 +1,16 @@
 """Track + dashboard tests (live DB, self-cleaning)."""
+import os
+
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
 from tests.test_complaints_api import BASE, REF, cleanup, client  # noqa: F401
+
+pytestmark = pytest.mark.skipif(
+    not os.getenv("DATABASE_URL"),
+    reason="live database tests require DATABASE_URL",
+)
 
 TRACK_ALLOW = {"reference_id", "bus_number", "route_text", "category", "priority",
                "status", "depot", "sla_due_at", "sla_breached", "created_at", "history"}

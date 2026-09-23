@@ -1,3 +1,6 @@
+import os
+
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -6,6 +9,15 @@ from app.services.whatsapp import extract_message, parse_complaint_text
 from tests.test_complaints_api import cleanup  # live-DB, self-cleaning pattern
 
 c = TestClient(app)
+
+LIVE_DB = pytest.mark.skipif(
+    not os.getenv("DATABASE_URL"),
+    reason="live database tests require DATABASE_URL",
+)
+CONFIGURED = pytest.mark.skipif(
+    not os.getenv("WHATSAPP_VERIFY_TOKEN"),
+    reason="WhatsApp verification is disabled without WHATSAPP_VERIFY_TOKEN",
+)
 
 
 def test_verify_echoes_challenge():
@@ -16,6 +28,7 @@ def test_verify_echoes_challenge():
     assert r.text == "CHAL"
 
 
+@CONFIGURED
 def test_verify_rejects_wrong_token():
     r = c.get("/api/v1/whatsapp/webhook",
               params={"hub.verify_token": "wrong", "hub.challenge": "CHAL"})
@@ -47,6 +60,7 @@ def _wa_payload(sender: str, body: str):
         {"from": sender, "type": "text", "text": {"body": body}}]}}]}]}
 
 
+@LIVE_DB
 def test_webhook_files_complaint():
     r = c.post("/api/v1/whatsapp/webhook", json=_wa_payload(
         "919999999999", "overcrowding | Adoor - Ekm | Bus was severely overcrowded today"))
@@ -60,6 +74,7 @@ def test_webhook_files_complaint():
         cleanup(r.json()["reference_id"])
 
 
+@LIVE_DB
 def test_webhook_unknown_route_needs_triage():
     r = c.post("/api/v1/whatsapp/webhook", json=_wa_payload(
         "919999999999", "cleanliness | No Such Route XYZ | This bus was very dirty today indeed"))
