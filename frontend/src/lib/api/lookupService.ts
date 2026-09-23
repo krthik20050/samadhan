@@ -2,7 +2,7 @@
 // (backend GET /api/v1/routes, /api/v1/depots — see scripts/import_dataset.py).
 // Falls back to an empty list, never to fake routes: an unresolvable route
 // must reach the backend as free text and become needs_triage, not pretend.
-import { api, BackendUnavailable } from './client';
+import { api } from './client';
 
 export interface BackendRouteOption {
   id: string;
@@ -64,9 +64,8 @@ export const lookupService = {
         `/api/v1/routes?q=${encodeURIComponent(q)}&limit=${limit}`
       );
       return data.items.map(mapRoute);
-    } catch (e) {
-      if (e instanceof BackendUnavailable) return [];
-      throw e;
+    } catch {
+      return [];
     }
   },
 
@@ -85,9 +84,8 @@ export const lookupService = {
         zone: d.zone,
         verifiedRoutes: d.verified_routes,
       }));
-    } catch (e) {
-      if (e instanceof BackendUnavailable) return [];
-      throw e;
+    } catch {
+      return [];
     }
   },
 };

@@ -6,10 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "typecheck": "tsc -b",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@clerk/react-router": "^3.6.25",
     "framer-motion": "^13.4.1",
     "lucide-react": "^1.47.0",
     "react": "^19.2.8",

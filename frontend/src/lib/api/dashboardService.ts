@@ -1,7 +1,7 @@
 import type { ComplaintCategory, DepotStat, PublicTransparencyStats } from '../../types';
 
 import { MOCK_DEPOTS, MOCK_PUBLIC_STATS } from '../mockData';
-import { api, BackendUnavailable, type BackendDashboardSummary } from './client';
+import { api, type BackendDashboardSummary } from './client';
 import { complaintsService } from './complaintsService';
 
 export const dashboardService = {
@@ -23,8 +23,7 @@ export const dashboardService = {
           percentage: Math.round((count / catTotal) * 100),
         })),
       };
-    } catch (e) {
-      if (!(e instanceof BackendUnavailable)) throw e;
+    } catch {
       await new Promise((res) => setTimeout(res, 200));
       return MOCK_PUBLIC_STATS;
     }
