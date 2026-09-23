@@ -2,43 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { notificationService } from '../../lib/api';
 import type { NotificationLogItem } from '../../types';
 import { NotificationItem } from '../../components/admin/NotificationItem';
-import { Button } from '../../components/common/Button';
 import {
   Bell,
-  Send,
   Filter,
 } from 'lucide-react';
 
 export const AdminNotifications: React.FC = () => {
   const [notifications, setNotifications] = useState<NotificationLogItem[]>([]);
   const [channelFilter, setChannelFilter] = useState<string>('all');
-  const [isSimulating, setIsSimulating] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    notificationService.getAll().then(setNotifications);
-  }, []);
-
-  const handleSimulateDispatch = async () => {
-    setIsSimulating(true);
-    await new Promise((res) => setTimeout(res, 400));
-
-    const simulatedChannels: Array<'whatsapp' | 'sms' | 'email'> = ['whatsapp', 'sms', 'email'];
-    const channel = simulatedChannels[Math.floor(Math.random() * simulatedChannels.length)];
-
-    const newItem = await notificationService.logNotification({
-      complaintRef: `SAM-2026-00${Math.floor(Math.random() * 800 + 1000)}`,
-      channel,
-      recipientAnonymized: `ANON-USR-${Math.floor(Math.random() * 800 + 100)}`,
-      eventType: 'in_progress',
-      subject: 'Depot Action Progress Update',
-      messageContent:
-        'Samadhan Alert: Grievance under inspection by operating depot. Sanitation crew dispatched.',
-      status: 'delivered',
+    notificationService.getAll().then(setNotifications).catch((error: Error) => {
+      setLoadError(error.message);
     });
-
-    setNotifications((prev) => [newItem, ...prev]);
-    setIsSimulating(false);
-  };
+  }, []);
 
   const filtered = notifications.filter(
     (n) => channelFilter === 'all' || n.channel === channelFilter
@@ -57,20 +35,16 @@ export const AdminNotifications: React.FC = () => {
             Passenger Notification Dispatch
           </h1>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
-            Simulated dispatch engine monitoring WhatsApp, SMS, and Email milestones for registered grievances.
+            Backend notification records for WhatsApp, SMS, and Email milestones.
           </p>
         </div>
-
-        <Button
-          variant="primary"
-          size="md"
-          onClick={handleSimulateDispatch}
-          isLoading={isSimulating}
-          icon={<Send className="w-4 h-4 text-[var(--accent)]" />}
-        >
-          Simulate Real-Time Dispatch
-        </Button>
       </div>
+
+      {loadError && (
+        <div className="p-4 rounded-[10px] border border-[var(--border-standard)] text-sm text-[var(--text-secondary)]">
+          Notification data is unavailable from the configured backend: {loadError}
+        </div>
+      )}
 
       {/* Channel Filters */}
       <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-[var(--surface-primary)] rounded-[12px] border border-[var(--border-standard)]">
@@ -132,6 +106,11 @@ export const AdminNotifications: React.FC = () => {
         {filtered.map((item) => (
           <NotificationItem key={item.id} item={item} />
         ))}
+        {!loadError && filtered.length === 0 && (
+          <p className="py-8 text-sm text-[var(--text-secondary)]">
+            No notification records are available from the backend.
+          </p>
+        )}
       </div>
     </div>
   );

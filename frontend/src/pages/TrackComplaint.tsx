@@ -8,7 +8,6 @@ import { ReferenceNumber } from '../components/common/ReferenceNumber';
 import { ComplaintTimeline } from '../components/complaint/ComplaintTimeline';
 import {
   Search,
-  RotateCcw,
 } from 'lucide-react';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -29,7 +28,6 @@ export const TrackComplaint: React.FC = () => {
   const [isLoading, setIsLoading] = useState(() => Boolean(searchParams.get('ref')));
   const [complaint, setComplaint] = useState<ComplaintData | null>(null);
   const [searched, setSearched] = useState(() => Boolean(searchParams.get('ref')));
-  const [sampleCases, setSampleCases] = useState<ComplaintData[]>([]);
 
   const handleSearch = async (refCodeToSearch?: string) => {
     const code = refCodeToSearch || refInput;
@@ -54,10 +52,6 @@ export const TrackComplaint: React.FC = () => {
 
   useEffect(() => {
     let ignore = false;
-    trackingService.getRecentSampleCases().then((cases) => {
-      if (!ignore) setSampleCases(cases);
-    });
-
     const refQuery = searchParams.get('ref');
     if (refQuery) {
       trackingService.trackByReference(refQuery).then((result) => {
@@ -71,11 +65,6 @@ export const TrackComplaint: React.FC = () => {
       ignore = true;
     };
   }, [searchParams]);
-
-  const handleSelectSample = (sample: ComplaintData) => {
-    setRefInput(sample.referenceNumber);
-    handleSearch(sample.referenceNumber);
-  };
 
   return (
     <div className="app-container py-12 sm:py-16 text-left max-w-3xl">
@@ -123,24 +112,6 @@ export const TrackComplaint: React.FC = () => {
           </Button>
         </form>
 
-        {/* Prototype Sample Cases */}
-        <div className="flex flex-wrap items-center gap-2 pt-1 text-[12px]">
-          <span className="font-mono text-[11px] uppercase text-[var(--text-muted)]">Demo references:</span>
-          {sampleCases.map((sample) => (
-            <button
-              key={sample.id}
-              type="button"
-              onClick={() => handleSelectSample(sample)}
-              className={`px-2 py-0.5 rounded-[4px] border font-mono transition-colors cursor-pointer ${
-                complaint?.referenceNumber === sample.referenceNumber
-                  ? 'bg-[var(--brand)] text-white border-[var(--brand)]'
-                  : 'bg-[var(--surface-primary)] text-[var(--text-secondary)] border-[var(--border-standard)] hover:text-[var(--text-primary)]'
-              }`}
-            >
-              {sample.referenceNumber}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Loading state */}
@@ -160,16 +131,8 @@ export const TrackComplaint: React.FC = () => {
             We couldn’t locate that complaint.
           </h3>
           <p className="text-[14px] text-[var(--text-secondary)] max-w-md">
-            Check the reference number format (e.g. SAM-2026-001284), or select an active demo reference above.
+            Check the reference number and try again. Only complaints stored in the backend can be tracked.
           </p>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => handleSelectSample(sampleCases[0])}
-            icon={<RotateCcw className="w-3.5 h-3.5" />}
-          >
-            Load Sample Case
-          </Button>
         </div>
       )}
 

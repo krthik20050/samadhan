@@ -22,7 +22,7 @@ export const AdminDashboard: React.FC = () => {
     inProgress: number;
     resolved: number;
     breached: number;
-    averageResolutionHours: number;
+    averageResolutionHours: number | null;
     depots: DepotStat[];
   } | null>(null);
   const [recentComplaints, setRecentComplaints] = useState<ComplaintData[]>([]);
@@ -82,11 +82,11 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Demonstration Sandbox Notice */}
+      {/* Backend data notice */}
       <div className="bg-[var(--surface-primary)] border border-[var(--border-standard)] rounded-[10px] p-3.5 flex items-start gap-2.5">
         <div className="w-1.5 h-1.5 rounded-full bg-[var(--brand)] mt-1.5 shrink-0" />
         <div className="text-[12px] text-[var(--text-secondary)] leading-relaxed">
-          <strong className="text-[var(--text-primary)] font-medium">Operational Demonstration Sandbox:</strong> Depot metrics, ticket assignments, and automated SLA escalations shown below are simulated for prototype verification.
+          <strong className="text-[var(--text-primary)] font-medium">Live backend data:</strong> Metrics and complaint records below are read from the configured grievance API.
         </div>
       </div>
 
@@ -137,7 +137,9 @@ export const AdminDashboard: React.FC = () => {
             </p>
           </div>
           <span className="text-[12px] font-mono text-[var(--text-secondary)]">
-            Avg Resolution: <strong className="text-[var(--text-primary)]">{stats.averageResolutionHours} Hours</strong>
+            Avg Resolution:             <strong className="text-[var(--text-primary)]">
+              {stats.averageResolutionHours === null ? 'Not available' : `${stats.averageResolutionHours} Hours`}
+            </strong>
           </span>
         </div>
 
@@ -185,6 +187,13 @@ export const AdminDashboard: React.FC = () => {
                   </td>
                 </tr>
               ))}
+              {stats.depots.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-6 px-3 text-center text-sm text-[var(--text-secondary)]">
+                    Depot workload metrics are not available from the backend yet.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

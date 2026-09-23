@@ -1,8 +1,9 @@
-// ponytail: thin fetch wrapper; services go backend-first and fall back to
-// mocks only when the backend is unreachable (demo resilience).
 import { authService } from '../auth';
 
-const BASE = (import.meta.env.VITE_API_URL ?? 'http://localhost:8000').replace(/\/+$/, '');
+const BASE = (
+  import.meta.env.VITE_API_URL ??
+  'https://ikipstqlumypppfypdrx.supabase.co/functions/v1/api'
+).replace(/\/+$/, '');
 
 export class BackendUnavailable extends Error {}
 
