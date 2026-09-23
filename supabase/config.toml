@@ -1,0 +1,8 @@
+project_id = "samadhan"
+
+# The /api function does its own auth (staff Bearer token, Telegram secret
+# header) and must accept calls from the Vercel frontend without a Supabase
+# JWT, so platform-level verification is off. All data access still requires
+# the service-role key, which never leaves the function.
+[functions.api]
+verify_jwt = false

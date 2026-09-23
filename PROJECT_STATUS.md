@@ -1,8 +1,23 @@
 # Project status
 
 - **Current phase:** CORE MVP IMPLEMENTATION
-- **Status:** DATASET CONNECTED — full loop live (submit → resolve → track → dashboard)
-- **Frontend prod:** https://frontend-ruddy-seven-46.vercel.app (Vercel, auto-linked to GitHub krthik20050/samadhan; API calls need public backend URL — pending backend deploy)
+- **Status:** BACKEND LIVE ON SUPABASE — Edge Function + RPCs; Telegram bot wired (@esamadhanbot)
+- **API base (hosted):** https://ikipstqlumypppfypdrx.supabase.co/functions/v1/api
+- **Frontend prod:** https://frontend-ruddy-seven-46.vercel.app (set VITE_API_URL to the API base above in Vercel)
+
+## Hosting model (Supabase-only)
+
+- Logic lives in Postgres RPCs: `database/migrations/005_supabase_rpcs.sql`
+  (file/track/lookups/summary/staff list, `app_route_text_od_key` reuses the
+  migration-004 normalizer chain, `app_sla_sweep` scheduled via pg_cron when enabled).
+- One Edge Function routes HTTP: `supabase/functions/api` (Deno/supabase-js,
+  service-role only, staff Bearer + Telegram secret enforced, CORS *, FastAPI-compatible shapes).
+- Deploy: `npx supabase functions deploy api --project-ref ikipstqlumypppfypdrx`
+  (needs SUPABASE_ACCESS_TOKEN); secrets via `supabase secrets set`.
+- Telegram webhook: registered to `<api>/api/v1/telegram/webhook` with secret header
+  (`backend/scripts/setup_telegram_webhook.py info` to inspect).
+- Render (`grievance-api`) is redundant — safe to pause/delete.
+- FastAPI (`backend/`) remains the local-dev + pytest harness (37 tests, same contract).
 
 ## Dataset integration (this change)
 
