@@ -1,15 +1,15 @@
 /**
- * SAMADHAN SECURE AUTHENTICATION LAYER
+ * SAMADHAN Authentication Compatibility Layer
  *
- * Environment-configured authentication for both Passengers and Depot Administrators
- * with cryptographic token generation and strict Role-Based Access Control (RBAC).
+ * Authentication is handled by Clerk.
  *
- * Requirements satisfied:
- * - Completely removed weak/known credentials (no hardcoded passwords)
- * - Uses environment variable (VITE_ADMIN_DEMO_PASSWORD / ADMIN_DEMO_PASSWORD)
- * - Ephemeral session storage with cryptographically random session tokens
- * - Role-Based Access Control separating 'admin' and 'passenger'
- * - Prevents data breaches at service and routing layers
+ * This file intentionally does NOT:
+ * - store passwords
+ * - create frontend sessions
+ * - generate fake authentication tokens
+ * - determine admin access from an environment password
+ *
+ * Clerk is the source of truth for authentication and authorization.
  */
 
 export type UserRole = 'admin' | 'passenger';
@@ -17,145 +17,73 @@ export type UserRole = 'admin' | 'passenger';
 export interface AuthUser {
   id: string;
   name: string;
-  identifier: string; // phone or staff ID
+  identifier: string;
   role: UserRole;
   sessionToken: string;
   loginTime: string;
 }
 
-const STORAGE_KEY = 'samadhan_auth_session';
-
 /**
- * Retrieves the configured admin password from environment variables
+ * Legacy compatibility object.
+ *
+ * New code should use:
+ *   useAuth() from ../context/AuthContext
+ *
+ * and Clerk's useAuth/useUser hooks.
  */
-function getConfiguredAdminPassword(): string {
-  // Vite exposes env variables prefixed with VITE_ to the client
-  return import.meta.env.VITE_ADMIN_DEMO_PASSWORD || '';
-}
-
-/**
- * Generates an opaque cryptographically random session token
- */
-function generateSessionToken(): string {
-  const bytes = new Uint8Array(24);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
 export const authService = {
   /**
-   * Unified login for both Passengers and Depot Administrators.
+   * Authentication is now handled by Clerk.
    *
-   * Logic:
-   * - Compares against configured environment variable for admin access
-   * - Accepts valid passenger credentials for citizen access
+   * This method is intentionally unsupported so that old code
+   * does not accidentally reintroduce the previous demo login.
    */
-  login: async (
-    identifier: string,
-    password: string
-  ): Promise<{ success: boolean; user?: AuthUser; role?: UserRole; error?: string }> => {
-    // Artificial small delay for realistic secure processing
-    await new Promise((resolve) => setTimeout(resolve, 300));
-
-    const trimmedId = identifier.trim();
-    const trimmedPass = password.trim();
-
-    if (!trimmedId) {
-      return {
-        success: false,
-        error: 'Please enter your Name or Identifier.',
-      };
-    }
-
-    if (!trimmedPass || trimmedPass.length < 4) {
-      return {
-        success: false,
-        error: 'Please enter a valid password (minimum 4 characters).',
-      };
-    }
-
-    const adminPassword = getConfiguredAdminPassword();
-
-    let role: UserRole;
-    let displayName = trimmedId;
-
-    // Check if entered credentials match the configured admin environment password
-    if (adminPassword && trimmedPass === adminPassword) {
-      role = 'admin';
-      if (!displayName || displayName.toLowerCase() === 'admin') {
-        displayName = 'Depot Operations Officer';
-      }
-    } else {
-      // If the user entered an identifier and a general password (not matching admin)
-      role = 'passenger';
-    }
-
-    const user: AuthUser = {
-      id: `usr-${role}-${Date.now().toString(36)}`,
-      name: displayName,
-      identifier: trimmedId,
-      role,
-      sessionToken: generateSessionToken(),
-      loginTime: new Date().toISOString(),
-    };
-
-    try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(user));
-    } catch {
-      // Graceful fallback for restricted storage environments
-    }
-
+  login: async (): Promise<{
+    success: false;
+    error: string;
+  }> => {
     return {
-      success: true,
-      user,
-      role,
+      success: false,
+      error: 'Authentication is handled by Clerk.',
     };
   },
 
   /**
-   * Clears the active session
+   * Clerk owns the active session.
    */
   logout: (): void => {
-    try {
-      sessionStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // Ignore storage errors
-    }
+    // Intentionally empty.
+    // Use Clerk's signOut() through useClerk().
   },
 
   /**
-   * Retrieves the current user from session storage
+   * Clerk owns the current user.
    */
   getCurrentUser: (): AuthUser | null => {
-    try {
-      const data = sessionStorage.getItem(STORAGE_KEY);
-      if (!data) return null;
-      return JSON.parse(data) as AuthUser;
-    } catch {
-      return null;
-    }
+    return null;
   },
 
   /**
-   * Verifies if an active authenticated session exists
+   * Clerk owns authentication state.
    */
   isAuthenticated: (): boolean => {
-    return Boolean(authService.getCurrentUser());
+    return false;
   },
 
   /**
-   * Verifies if the current session has admin privileges
+   * Admin authorization is determined by Clerk public metadata.
+   *
+   * The actual check is performed in AuthContext:
+   * user.publicMetadata.role === 'admin'
    */
   isAdmin: (): boolean => {
-    const user = authService.getCurrentUser();
-    return Boolean(user && user.role === 'admin');
+    return false;
   },
 
   /**
-   * Verifies if the current session is a passenger
+   * Passenger authorization is also determined by Clerk.
    */
   isPassenger: (): boolean => {
-    const user = authService.getCurrentUser();
-    return Boolean(user && user.role === 'passenger');
+    return false;
   },
 };

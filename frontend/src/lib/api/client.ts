@@ -1,18 +1,65 @@
-// ponytail: thin fetch wrapper; services go backend-first and fall back to
-// mocks only when the backend is unreachable (demo resilience).
-const BASE = (import.meta.env.VITE_API_URL ?? 'http://localhost:8000').replace(/\/+$/, '');
+// Thin authenticated fetch wrapper.
+// Services call the backend through this function.
+// Clerk provides the current session token through setTokenGetter().
+
+const BASE = (
+  import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+).replace(/\/+$/, '');
 
 export class BackendUnavailable extends Error {}
 
-export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+type TokenGetter = () => Promise<string | null>;
+
+let tokenGetter: TokenGetter | null = null;
+
+/**
+ * Registers the Clerk token getter.
+ *
+ * AuthContext calls this once Clerk is available.
+ */
+export function setTokenGetter(getToken: TokenGetter) {
+  tokenGetter = getToken;
+}
+
+export async function api<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
   const ctrl = new AbortController();
+
   const timer = setTimeout(() => ctrl.abort(), 15000);
+
   try {
-    const res = await fetch(`${BASE}${path}`, { ...init, signal: ctrl.signal });
-    if (!res.ok) throw new Error(`Backend ${res.status}`);
+    const headers = new Headers(init.headers);
+
+    // Ask Clerk for the current session token.
+    if (tokenGetter) {
+      const token = await tokenGetter();
+
+      if (token && !headers.has('Authorization')) {
+        headers.set('Authorization', `Bearer ${token}`);
+      }
+    }
+
+    const res = await fetch(`${BASE}${path}`, {
+      ...init,
+      headers,
+      signal: ctrl.signal,
+    });
+
+    if (!res.ok) {
+      throw new Error(`Backend ${res.status}`);
+    }
+
     return (await res.json()) as T;
   } catch (e) {
-    if (e instanceof Error && e.message.startsWith('Backend ')) throw e;
+    if (e instanceof BackendUnavailable) {
+      throw e;
+    }
+    if (e instanceof Error && e.message.startsWith('Backend ')) {
+      throw e;
+    }
+
     throw new BackendUnavailable('backend unreachable');
   } finally {
     clearTimeout(timer);
@@ -20,6 +67,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 // Mirror backend pydantic schemas (backend/app/schemas/*)
+
 export interface BackendComplaintOut {
   reference_id: string;
   status: string;

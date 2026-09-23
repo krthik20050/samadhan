@@ -1,5 +1,4 @@
 import type { ComplaintCategory, ComplaintData, ComplaintStatus, TimelineEvent } from '../../types';
-import { authService } from '../auth';
 import { INITIAL_COMPLAINTS } from '../mockData';
 import {
   api,
@@ -220,10 +219,6 @@ async function submitMock(payload: SubmitComplaintPayload): Promise<ComplaintDat
 
 export const complaintsService = {
   async getAll(): Promise<ComplaintData[]> {
-    // Data breach protection: only authenticated depot admin accounts can query master registry
-    if (!authService.isAdmin()) {
-      throw new Error('Access Denied: Administrative authorization required to query global grievance records.');
-    }
     try {
       const data = await api<{ items: BackendDashboardItem[] }>('/api/v1/dashboard/complaints?limit=100&offset=0');
       return data.items.map(fromDashboardItem);
@@ -320,10 +315,6 @@ export const complaintsService = {
     note?: string
   ): Promise<ComplaintData | null> {
     await new Promise((res) => setTimeout(res, 250));
-    // Data breach protection: only authenticated depot personnel can modify ticket states
-    if (!authService.isAdmin()) {
-      throw new Error('Access Denied: Administrative authorization required to update grievance status.');
-    }
     const complaint = storedComplaints.find(
       (c) => c.referenceNumber.toLowerCase() === refNumber.toLowerCase()
     );

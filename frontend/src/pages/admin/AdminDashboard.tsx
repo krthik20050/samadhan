@@ -27,17 +27,35 @@ export const AdminDashboard: React.FC = () => {
   } | null>(null);
   const [recentComplaints, setRecentComplaints] = useState<ComplaintData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let ignore = false;
     Promise.all([dashboardService.getAdminStats(), complaintsService.getAll()])
       .then(([statsRes, allComplaints]) => {
-        setStats(statsRes);
-        setRecentComplaints(allComplaints.slice(0, 5));
+        if (!ignore) {
+          setStats(statsRes);
+          setRecentComplaints(allComplaints.slice(0, 5));
+          setError(null);
+        }
       })
-      .finally(() => setIsLoading(false));
+      .catch((err) => {
+        if (!ignore) {
+          setError(err instanceof Error ? err.message : 'Failed to load depot metrics');
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
   }, []);
 
-  if (isLoading || !stats) {
+  if (isLoading) {
     return (
       <div className="p-12 text-center">
         <div className="w-8 h-8 border-2 border-[var(--brand)] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
@@ -46,6 +64,31 @@ export const AdminDashboard: React.FC = () => {
         </p>
       </div>
     );
+  }
+
+  if (error) {
+    return (
+      <div className="p-12 text-center max-w-md mx-auto space-y-4">
+        <div className="w-12 h-12 rounded-full bg-[var(--surface-primary)] border border-[var(--semantic-error)] text-[var(--semantic-error)] flex items-center justify-center mx-auto">
+          <AlertTriangle className="w-6 h-6" />
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-[var(--text-primary)]">
+            Authentication / API Error
+          </h2>
+          <p className="text-sm text-[var(--text-secondary)] mt-1">
+            {error}
+          </p>
+        </div>
+        <p className="text-xs text-[var(--text-muted)] font-mono">
+          Please verify your admin credentials or backend connection.
+        </p>
+      </div>
+    );
+  }
+
+  if (!stats) {
+    return null;
   }
 
   return (

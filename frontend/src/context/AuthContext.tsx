@@ -1,7 +1,20 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext } from 'react';
 import type { ReactNode } from 'react';
-import { authService } from '../lib/auth';
-import type { AuthUser, UserRole } from '../lib/auth';
+import {
+  useAuth as useClerkAuth,
+  useClerk,
+  useUser,
+} from '@clerk/react-router';
+import { setTokenGetter } from '../lib/api/client';
+
+export type UserRole = 'admin' | 'passenger';
+
+export interface AuthUser {
+  id: string;
+  email: string | null;
+  name: string | null;
+  role: UserRole;
+}
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -9,42 +22,72 @@ interface AuthContextType {
   isAdmin: boolean;
   isPassenger: boolean;
   isLoading: boolean;
-  login: (
-    identifier: string,
-    password: string
-  ) => Promise<{ success: boolean; role?: UserRole; error?: string }>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<AuthUser | null>(() => authService.getCurrentUser());
-  const [isLoading] = useState(false);
+interface AuthProviderProps {
+  children: ReactNode;
+}
 
-  const login = async (identifier: string, password: string) => {
-    const res = await authService.login(identifier, password);
-    if (res.success && res.user) {
-      setUser(res.user);
-      return { success: true, role: res.role };
-    }
-    return { success: false, error: res.error || 'Authentication failed' };
-  };
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  // Clerk's authentication/session state
+  const {
+    isLoaded: isAuthLoaded,
+    isSignedIn,
+    getToken,
+  } = useClerkAuth();
 
-  const logout = () => {
-    authService.logout();
-    setUser(null);
+  React.useEffect(() => {
+    setTokenGetter(getToken);
+  }, [getToken]);
+
+  // Clerk's current User object
+  const {
+    isLoaded: isUserLoaded,
+    user: clerkUser,
+  } = useUser();
+
+  const { signOut } = useClerk();
+
+  const isLoading = !isAuthLoaded || !isUserLoaded;
+
+  const role: UserRole =
+    clerkUser?.publicMetadata?.role === 'admin'
+      ? 'admin'
+      : 'passenger';
+
+  const isAuthenticated =
+    isAuthLoaded && Boolean(isSignedIn);
+
+  const user: AuthUser | null =
+    isAuthenticated && clerkUser
+      ? {
+          id: clerkUser.id,
+          email:
+            clerkUser.primaryEmailAddress?.emailAddress ?? null,
+          name:
+            [clerkUser.firstName, clerkUser.lastName]
+              .filter(Boolean)
+              .join(' ') || null,
+          role,
+        }
+      : null;
+
+  const logout = async () => {
+    await signOut();
   };
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        isAuthenticated: Boolean(user),
-        isAdmin: Boolean(user && user.role === 'admin'),
-        isPassenger: Boolean(user && user.role === 'passenger'),
+        isAuthenticated,
+        isAdmin: isAuthenticated && role === 'admin',
+        isPassenger:
+          isAuthenticated && role === 'passenger',
         isLoading,
-        login,
         logout,
       }}
     >
@@ -55,8 +98,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
+
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error(
+      'useAuth must be used within an AuthProvider',
+    );
   }
+
   return context;
 };

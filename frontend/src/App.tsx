@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 
 import { LanguageProvider } from './context/LanguageContext';
 import { ComplaintDraftProvider } from './context/ComplaintDraftContext';
@@ -31,47 +31,57 @@ function App() {
     <AuthProvider>
       <LanguageProvider>
         <ComplaintDraftProvider>
-          <BrowserRouter>
-            <Routes>
-              {/* 1. PASSENGER EXPERIENCE (Completely Open, Zero Admin UI) */}
-              <Route element={<PublicLayout />}>
-                <Route path="/" element={<Home />} />
-                <Route path="/file-complaint" element={<FileComplaint />} />
-                <Route path="/file-complaint/voice" element={<VoiceComplaint />} />
-                <Route path="/file-complaint/review" element={<ReviewComplaint />} />
-                <Route path="/file-complaint/success" element={<ComplaintSuccess />} />
-                <Route path="/track" element={<TrackComplaint />} />
-                <Route path="/public" element={<PublicDashboard />} />
-              </Route>
+          <Routes>
+            {/* 1. PASSENGER EXPERIENCE */}
+            <Route element={<PublicLayout />}>
+              <Route path="/" element={<Home />} />
+              <Route path="/file-complaint" element={<FileComplaint />} />
+              <Route path="/file-complaint/voice" element={<VoiceComplaint />} />
+              <Route path="/file-complaint/review" element={<ReviewComplaint />} />
+              <Route path="/file-complaint/success" element={<ComplaintSuccess />} />
+              <Route path="/track" element={<TrackComplaint />} />
+              <Route path="/public" element={<PublicDashboard />} />
+            </Route>
 
-              {/* 2. DEDICATED DEPOT / ADMIN LOGIN */}
-              <Route path="/login" element={<Login />} />
+            {/* 2. DEDICATED DEPOT / ADMIN LOGIN */}
+            <Route path="/login" element={<Login />} />
 
-              {/* 3. RESTRICTED DEPOT / ADMIN EXPERIENCE (Strictly Protected) */}
-              <Route
-                path="/admin/depot"
-                element={
-                  <ProtectedRoute>
-                    <AdminLayout />
-                  </ProtectedRoute>
-                }
-              >
-                <Route index element={<AdminDashboard />} />
-                <Route path="complaints" element={<AdminComplaints />} />
-                <Route path="escalations" element={<AdminEscalations />} />
-                <Route path="notifications" element={<AdminNotifications />} />
-              </Route>
+            {/* 3. RESTRICTED DEPOT / ADMIN EXPERIENCE */}
+            <Route
+              path="/admin/depot"
+              element={
+                <ProtectedRoute>
+                  <AdminLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<AdminDashboard />} />
+              <Route path="complaints" element={<AdminComplaints />} />
+              <Route path="escalations" element={<AdminEscalations />} />
+              <Route path="notifications" element={<AdminNotifications />} />
+            </Route>
 
-              {/* Backward compatibility redirects for /admin to /admin/depot */}
-              <Route path="/admin" element={<Navigate to="/admin/depot" replace />} />
-              <Route path="/admin/complaints" element={<Navigate to="/admin/depot/complaints" replace />} />
-              <Route path="/admin/escalations" element={<Navigate to="/admin/depot/escalations" replace />} />
-              <Route path="/admin/notifications" element={<Navigate to="/admin/depot/notifications" replace />} />
+            {/* Backward compatibility redirects */}
+            <Route
+              path="/admin"
+              element={<Navigate to="/admin/depot" replace />}
+            />
+            <Route
+              path="/admin/complaints"
+              element={<Navigate to="/admin/depot/complaints" replace />}
+            />
+            <Route
+              path="/admin/escalations"
+              element={<Navigate to="/admin/depot/escalations" replace />}
+            />
+            <Route
+              path="/admin/notifications"
+              element={<Navigate to="/admin/depot/notifications" replace />}
+            />
 
-              {/* Catch-all redirect */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </BrowserRouter>
+            {/* Catch-all redirect */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
         </ComplaintDraftProvider>
       </LanguageProvider>
     </AuthProvider>
