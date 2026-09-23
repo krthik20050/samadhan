@@ -1,7 +1,26 @@
 # Project status
 
 - **Current phase:** CORE MVP IMPLEMENTATION
-- **Status:** FULL LOOP LIVE (submit → track → dashboard) — next: SLA breach checker + escalate (Phase 6)
+- **Status:** DATASET CONNECTED — full loop live (submit → resolve → track → dashboard)
+- **Frontend prod:** https://frontend-ruddy-seven-46.vercel.app (Vercel, auto-linked to GitHub krthik20050/samadhan; API calls need public backend URL — pending backend deploy)
+
+## Dataset integration (this change)
+
+- `database/migrations/004_lookup_hardening.sql`: `route_aliases` table,
+  `routes.od_match_key` (trigger-maintained canonical OD key, SQL port of the
+  dataset normaliser incl. alias table), depot email/zone/pincode,
+  `import_runs` provenance table.
+- `backend/scripts/import_dataset.py`: idempotent COPY-based import of
+  `../dataset/data/final/*.csv` (depots, routes, VERIFIED+PROBABLE mappings,
+  5,881 aliases); run log recorded per import.
+- Route resolution now matches passenger spellings: `'Guruvayoor to
+  Kozhikode'` → dataset route `'Guruvayur - Kozhikode'` → VERIFIED depot.
+  Colliding canonical corridors (e.g. published as both 'X - Ernakulam' and
+  'X - Kochi') resolve only when exactly one candidate has a VERIFIED depot,
+  else fall to needs_triage (never a guess).
+- `GET /api/v1/routes` + `GET /api/v1/depots` are live (search + bounded
+  limits) and power the complaint-form stop suggestions; frontend gained
+  `lookupService` with offline fallback to the static stop list.
 
 ## Completed
 

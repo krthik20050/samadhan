@@ -1,6 +1,7 @@
 """Anonymised management dashboard (never phone/identity/location)."""
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.core.auth import require_staff
 from app.core.db import get_conn
 from app.schemas.dashboard import DashboardList, DashboardSummary
 
@@ -35,6 +36,7 @@ def dashboard_summary():
 
 @router.get("/complaints", response_model=DashboardList)
 def dashboard_complaints(
+    _staff: None = Depends(require_staff),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     status: str | None = None,

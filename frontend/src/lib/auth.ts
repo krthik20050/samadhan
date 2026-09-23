@@ -24,9 +24,12 @@ export interface AuthUser {
 }
 
 const STORAGE_KEY = 'samadhan_auth_session';
+// ponytail: duplicated from api/client (not imported) to avoid a module cycle.
+const API_BASE = (import.meta.env.VITE_API_URL ?? 'http://localhost:8000').replace(/\/+$/, '');
 
 /**
  * Retrieves the configured admin password from environment variables
+ * (offline-demo fallback only; the backend is the real check).
  */
 function getConfiguredAdminPassword(): string {
   // Vite exposes env variables prefixed with VITE_ to the client
@@ -54,9 +57,6 @@ export const authService = {
     identifier: string,
     password: string
   ): Promise<{ success: boolean; user?: AuthUser; role?: UserRole; error?: string }> => {
-    // Artificial small delay for realistic secure processing
-    await new Promise((resolve) => setTimeout(resolve, 300));
-
     const trimmedId = identifier.trim();
     const trimmedPass = password.trim();
 
@@ -74,20 +74,24 @@ export const authService = {
       };
     }
 
-    const adminPassword = getConfiguredAdminPassword();
-
+    // Server is the real check: only it can grant the admin role.
     let role: UserRole;
-    let displayName = trimmedId;
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: trimmedPass }),
+      });
+      role = res.ok ? 'admin' : 'passenger';
+    } catch {
+      // Backend unreachable (offline demo): fall back to the env password.
+      const adminPassword = getConfiguredAdminPassword();
+      role = adminPassword && trimmedPass === adminPassword ? 'admin' : 'passenger';
+    }
 
-    // Check if entered credentials match the configured admin environment password
-    if (adminPassword && trimmedPass === adminPassword) {
-      role = 'admin';
-      if (!displayName || displayName.toLowerCase() === 'admin') {
-        displayName = 'Depot Operations Officer';
-      }
-    } else {
-      // If the user entered an identifier and a general password (not matching admin)
-      role = 'passenger';
+    let displayName = trimmedId;
+    if (role === 'admin' && (!displayName || displayName.toLowerCase() === 'admin')) {
+      displayName = 'Depot Operations Officer';
     }
 
     const user: AuthUser = {
@@ -95,7 +99,9 @@ export const authService = {
       name: displayName,
       identifier: trimmedId,
       role,
-      sessionToken: generateSessionToken(),
+      // Admin: the verified staff secret, sent as the Bearer token.
+      // Passenger: random opaque value, never accepted by the backend.
+      sessionToken: role === 'admin' ? trimmedPass : generateSessionToken(),
       loginTime: new Date().toISOString(),
     };
 
@@ -141,6 +147,14 @@ export const authService = {
    */
   isAuthenticated: (): boolean => {
     return Boolean(authService.getCurrentUser());
+  },
+
+  /**
+   * Bearer token for staff API calls (the verified admin secret, or null).
+   */
+  staffToken: (): string | null => {
+    const user = authService.getCurrentUser();
+    return user && user.role === 'admin' ? user.sessionToken : null;
   },
 
   /**

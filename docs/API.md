@@ -47,5 +47,20 @@ Appends to `status_history`. Errors: `404`, `422` illegal transition.
 ## POST /api/v1/complaints/{id}/escalate — escalate (TODO)
 Purpose: manual escalation. Appends history, sets `escalated`.
 
-## GET /api/v1/routes, GET /api/v1/depots — lookups (TODO)
-Purpose: populate form dropdowns from real KSRTC data. `?q=` search.
+## GET /api/v1/routes, GET /api/v1/depots — lookups (LIVE)
+Purpose: populate form dropdowns from the imported KSRTC dataset
+(`scripts/import_dataset.py` ← `../dataset/data/final/*.csv`).
+
+- `GET /api/v1/routes?q=&limit=` → `{items:[{id,name,origin,destination,
+  service_type,depot_name,auto_routable}]}` — `auto_routable` = has a
+  VERIFIED depot mapping; ordered auto-routable first.
+- `GET /api/v1/depots?q=&limit=` → `{items:[{id,name,district,phone,email,
+  zone,verified_routes}]}` — ordered by verified route count.
+- Both search name/origin/destination (+ district for depots, aliases for
+  routes), case-insensitive; limits are bounded (routes ≤ 200, depots ≤ 300).
+
+Complaint `route_text` matching now resolves passenger spellings through the
+dataset alias chain (same normalisation as the pipeline):
+`'Guruvayoor to Kozhikode'`, `'Trivandrum-Kochi'` and the web form's
+`'Origin → Destination via …'` all resolve to the canonical route; unknown
+text still becomes `needs_triage`, never a rejection.

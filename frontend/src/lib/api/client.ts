@@ -1,5 +1,7 @@
 // ponytail: thin fetch wrapper; services go backend-first and fall back to
 // mocks only when the backend is unreachable (demo resilience).
+import { authService } from '../auth';
+
 const BASE = (import.meta.env.VITE_API_URL ?? 'http://localhost:8000').replace(/\/+$/, '');
 
 export class BackendUnavailable extends Error {}
@@ -7,8 +9,12 @@ export class BackendUnavailable extends Error {}
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 15000);
+  // Staff endpoints (dashboard list) need the verified admin secret.
+  const token = authService.staffToken();
+  const headers = new Headers(init?.headers);
+  if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
   try {
-    const res = await fetch(`${BASE}${path}`, { ...init, signal: ctrl.signal });
+    const res = await fetch(`${BASE}${path}`, { ...init, headers, signal: ctrl.signal });
     if (!res.ok) throw new Error(`Backend ${res.status}`);
     return (await res.json()) as T;
   } catch (e) {
