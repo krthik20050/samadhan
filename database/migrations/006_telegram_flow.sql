@@ -24,13 +24,18 @@ ALTER TABLE telegram_conversations ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON telegram_conversations FROM PUBLIC, anon, authenticated;
 GRANT ALL ON telegram_conversations TO service_role;
 
--- get-or-create
+-- get-or-create. ON CONFLICT DO UPDATE (not DO NOTHING): RETURNING yields
+-- the row in BOTH cases, so an existing conversation is always returned.
 CREATE OR REPLACE FUNCTION tg_conv_get(p_chat_id bigint) RETURNS telegram_conversations
-LANGUAGE sql VOLATILE AS $$
+LANGUAGE plpgsql VOLATILE AS $$
+DECLARE
+  v telegram_conversations;
+BEGIN
   INSERT INTO telegram_conversations (chat_id) VALUES (p_chat_id)
-  ON CONFLICT (chat_id) DO NOTHING
-  RETURNING *;
-$$;
+  ON CONFLICT (chat_id) DO UPDATE SET updated_at = now()
+  RETURNING * INTO v;
+  RETURN v;
+END $$;
 
 -- save state (upsert)
 CREATE OR REPLACE FUNCTION tg_conv_save(p_chat_id bigint, p_state text, p_data jsonb)

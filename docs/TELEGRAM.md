@@ -1,66 +1,48 @@
-# Telegram bot setup
+# Telegram bot — @esamadhanbot
 
-Bot adapter: `POST /api/v1/telegram/webhook` — same complaint flow as WhatsApp and the web form.
+Button-driven complaint flow (BloodLink pattern): one question at a time,
+inline buttons, dataset-backed route suggestions, edit-before-submit.
+Hosted on the Supabase Edge Function (`supabase/functions/api`); conversation
+state lives in Postgres (`telegram_conversations`, migration 006).
 
-## 1. Create the bot (once)
+## User flow
 
-1. Open [@BotFather](https://t.me/BotFather) in Telegram.
-2. `/newbot` → pick a name and username (this project uses **@esamadhanbot**).
-3. Copy the HTTP API token into repo `.env`:
+1. `/start` → welcome + menu (🚨 File a complaint · 📋 My complaints · ❓ Help)
+2. **Category** — 9 tappable buttons (cleanliness, overcrowding, …)
+3. **Route** — type "Guruvayoor to Kozhikode" → bot suggests matching dataset
+   routes as buttons (exact name, use-as-typed, or skip)
+4. **Description** — one text message (min 10 chars)
+5. **Confirm** — summary with ✅ Submit · ✏️ Edit (per-field) · ❌ Cancel
+6. Filed → reference ID + depot, chat linked (`/my` lists your complaints)
 
-```env
-TELEGRAM_BOT_TOKEN=123456:ABC...
-TELEGRAM_SECRET_TOKEN=   # generate: py -c "import secrets; print(secrets.token_urlsafe(24))"
-```
+Safety valves: `/cancel` aborts anytime (nothing filed), double-tap Submit is
+an atomic claim (no duplicates), the legacy `cat | route | desc` pipe format
+still works, and a 10+ char bare message pre-fills the flow with a guessed
+category.
 
-`TELEGRAM_SECRET_TOKEN` is optional for local demos; set it before any public deployment so only Telegram can call your webhook (`X-Telegram-Bot-Api-Secret-Token` header).
+## Commands
 
-## 2. Run the API
+| Command | Effect |
+|---|---|
+| `/complain` | Start the guided flow |
+| `/my` | Your recent complaints from this chat |
+| `/track KSRTC-…` | Status of any complaint |
+| `/cancel` | Abort the current flow |
+| `/help` | Overview |
 
-```powershell
-cd backend
-.\.venv\Scripts\Activate.ps1
-py -m uvicorn app.main:app --reload --port 8000
-```
+## Where it runs
 
-Check: `GET http://localhost:8000/api/v1/telegram/webhook` → `{"status":"ok"}` when the token is set.
-
-## 3. Expose HTTPS (required for webhooks)
-
-Telegram must reach your server over **HTTPS**. For local dev, tunnel port 8000, e.g.:
-
-- [ngrok](https://ngrok.com): `ngrok http 8000` → use the `https://….ngrok-free.app` host
-- [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/): `cloudflared tunnel --url http://localhost:8000`
-
-## 4. Register the webhook
-
-From repo root (venv active):
-
-```powershell
-py backend/scripts/setup_telegram_webhook.py info
-py backend/scripts/setup_telegram_webhook.py set https://YOUR_TUNNEL_HOST
-```
-
-Verify:
-
-```powershell
-py backend/scripts/setup_telegram_webhook.py info
-```
-
-## 5. Try it in Telegram
-
-Message your bot:
-
-| Message | Result |
-|--------|--------|
-| `/start` or `/help` | Format help |
-| `overcrowding \| Adoor - Ernakulam \| Bus was severely overcrowded today` | Files complaint, returns `KSRTC-…` |
-| `/track KSRTC-2026-XXXXXX` | Status lookup |
-
-Complaints appear on the dashboard like web submissions (no phone on Telegram channel).
+- **Hosted (production):** Supabase Edge Function — webhook is
+  `https://ikipstqlumypppfypdrx.supabase.co/functions/v1/api/api/v1/telegram/webhook`,
+  secrets via `supabase secrets set` (TELEGRAM_BOT_TOKEN, TELEGRAM_SECRET_TOKEN,
+  ADMIN_API_TOKEN). See `supabase/README.md`.
+- **Local dev:** FastAPI `:8000` + a tunnel (ngrok / cloudflared), then
+  `py backend/scripts/setup_telegram_webhook.py set https://YOUR_TUNNEL_HOST`.
+  Pipe-format parity is covered by `backend/tests/test_telegram.py`.
 
 ## Troubleshooting
 
-- **No replies:** `setup_telegram_webhook.py info` — URL empty? Re-run `set`. Check tunnel still points at `:8000`.
-- **403 secret mismatch:** `TELEGRAM_SECRET_TOKEN` in `.env` must match what was sent on `setWebhook` (re-run `set` after changing `.env`).
-- **Send skipped:** Backend logs / webhook JSON may show `{"skipped":"no Telegram credentials"}` — restart uvicorn after editing `.env`.
+- **Bot silent:** `setup_telegram_webhook.py info` — check URL, `last_error_message`,
+  and that the webhook was re-`set` after any deploy/rename.
+- **403 secret mismatch:** `TELEGRAM_SECRET_TOKEN` must match what `set` registered.
+- **Changed the bot token in @BotFather:** update `.env` + function secrets, then re-run `set`.
