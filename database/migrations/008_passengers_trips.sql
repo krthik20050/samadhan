@@ -86,6 +86,13 @@ CREATE TABLE IF NOT EXISTS trips (
   UNIQUE (chat_id, route_label, bus_number)
 );
 CREATE INDEX IF NOT EXISTS idx_trips_chat ON trips (chat_id, last_used_at DESC);
+-- NULL bus numbers are distinct in a plain UNIQUE constraint (NULL != NULL),
+-- so dedupe must compare COALESCE(bus_number, '') — functional unique index.
+DELETE FROM trips a USING trips b
+  WHERE a.chat_id = b.chat_id AND a.route_label = b.route_label
+    AND COALESCE(a.bus_number, '') = COALESCE(b.bus_number, '') AND a.id > b.id;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_trips_chat_label_bus
+  ON trips (chat_id, route_label, COALESCE(bus_number, ''));
 ALTER TABLE trips ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON trips FROM PUBLIC, anon, authenticated;
 GRANT ALL ON trips TO service_role;
@@ -118,7 +125,7 @@ BEGIN
   IF p_route_label IS NULL OR btrim(p_route_label) = '' THEN RETURN; END IF;
   INSERT INTO trips (chat_id, route_id, route_label, bus_number)
   VALUES (p_chat_id, p_route_id, btrim(p_route_label), NULLIF(btrim(COALESCE(p_bus_number, '')), ''))
-  ON CONFLICT (chat_id, route_label, bus_number) DO UPDATE
+  ON CONFLICT (chat_id, route_label, COALESCE(bus_number, '')) DO UPDATE
     SET use_count = trips.use_count + 1, last_used_at = now(),
         route_id = COALESCE(EXCLUDED.route_id, trips.route_id);
 END $$;
@@ -139,15 +146,53 @@ BEGIN
   ) s;
 END $$;
 
+-- Web account panel: per-chat trips + complaints (allowlisted, no PII beyond
+-- the chat's own operational phone). Guarded at the router by staff Bearer OR
+-- a self-service chat_id in future Supabase Auth — service-role only here.
+CREATE OR REPLACE FUNCTION app_my_trips(p_chat_id bigint, p_limit int DEFAULT 10)
+RETURNS jsonb LANGUAGE plpgsql STABLE AS $$
+DECLARE
+  lim int := GREATEST(1, LEAST(COALESCE(p_limit, 10), 25));
+BEGIN
+  RETURN jsonb_build_object('items', COALESCE(jsonb_agg(x), '[]'::jsonb))
+  FROM (
+    SELECT jsonb_build_object(
+      'route_id', t.route_id, 'route_label', t.route_label,
+      'bus_number', t.bus_number, 'use_count', t.use_count) AS x
+    FROM trips t WHERE t.chat_id = p_chat_id
+    ORDER BY t.use_count DESC, t.last_used_at DESC
+    LIMIT lim
+  ) s;
+END $$;
+
+CREATE OR REPLACE FUNCTION app_my_complaints(p_chat_id bigint, p_limit int DEFAULT 10)
+RETURNS jsonb LANGUAGE plpgsql STABLE AS $$
+DECLARE
+  lim int := GREATEST(1, LEAST(COALESCE(p_limit, 10), 50));
+BEGIN
+  RETURN jsonb_build_object('items', COALESCE(jsonb_agg(x), '[]'::jsonb))
+  FROM (
+    SELECT jsonb_build_object(
+      'reference_id', c.reference_id, 'category', c.category, 'status', c.status,
+      'depot', d.name, 'sla_breached', c.sla_breached, 'created_at', c.created_at) AS x
+    FROM complaints c LEFT JOIN depots d ON d.id = c.depot_id
+    WHERE c.telegram_chat_id = p_chat_id
+    ORDER BY c.created_at DESC
+    LIMIT lim
+  ) s;
+END $$;
+
 REVOKE EXECUTE ON FUNCTION
   tg_passenger_link(bigint,text,text), tg_passenger_get(bigint),
   tg_passenger_unlink(bigint), tg_trip_save(bigint,uuid,text,text),
-  tg_trip_list(bigint,int), app_list_routes(text,int)
+  tg_trip_list(bigint,int), app_list_routes(text,int),
+  app_my_trips(bigint,int), app_my_complaints(bigint,int)
   FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION
   tg_passenger_link(bigint,text,text), tg_passenger_get(bigint),
   tg_passenger_unlink(bigint), tg_trip_save(bigint,uuid,text,text),
-  tg_trip_list(bigint,int), app_list_routes(text,int)
+  tg_trip_list(bigint,int), app_list_routes(text,int),
+  app_my_trips(bigint,int), app_my_complaints(bigint,int)
   TO service_role;
 
 COMMIT;

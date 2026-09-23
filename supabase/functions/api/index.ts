@@ -192,9 +192,15 @@ type TicketExtract = {
   origin: string | null;
   destination: string | null;
   travel_date: string | null; // YYYY-MM-DD
+  travel_time: string | null; // HH:MM
   ticket_no: string | null;
+  pnr: string | null;
   depot: string | null;
   service_type: string | null;
+  trip_code: string | null;
+  depot_phone: string | null;
+  landmark: string | null;
+  has_qr: boolean | null;
 };
 
 /** Ticket photo -> structured JSON via Groq vision. Slot: GROQ_API_KEY. */
@@ -206,11 +212,14 @@ async function extractTicketWithGroq(
   if (!key) return { ok: false, reason: 'GROQ_API_KEY not set — paste it as a function secret' };
   const b64 = btoa(String.fromCharCode(...bytes));
   const prompt =
-    'Read this KSRTC bus ticket image and return ONLY a JSON object with keys ' +
-    'bus_number (vehicle registration e.g. KL-01-AB-1234, null if absent), ' +
-    'origin, destination, travel_date (YYYY-MM-DD), ticket_no, depot, service_type ' +
-    '(e.g. SUPER FAST / EXPRESS / FAST PASSENGER, null if absent). ' +
-    'Use null for anything not printed. No commentary, JSON only.';
+    'Read this KSRTC bus ticket image. Return ONLY a JSON object with keys ' +
+    'bus_number (vehicle registration like KL-01-AB-1234 or the fleet plate e.g. PL-123, null if absent), ' +
+    'origin, destination, travel_date (normalize to YYYY-MM-DD), travel_time (HH:MM, null if absent), ' +
+    'ticket_no, pnr (PNR/booking reference, null if absent), depot, service_type ' +
+    '(SUPER FAST / EXPRESS / FAST PASSENGER / etc, null if absent), trip_code (service/trip code, null if absent), ' +
+    'depot_phone (printed depot contact number, null if absent), landmark (printed boarding landmark, null if absent), ' +
+    'has_qr (true if a QR code is printed, else false). ' +
+    'Take every value from the image verbatim; use null only when genuinely absent. JSON only, no commentary.';
   try {
     const r = await fetch(GROQ_URL, {
       method: 'POST',
@@ -238,16 +247,33 @@ async function extractTicketWithGroq(
     raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
     const parsed = JSON.parse(raw) as Partial<TicketExtract>;
     const s = (v: unknown) => (typeof v === 'string' && v.trim() && v !== 'null' ? v.trim() : null);
+    // Normalize DD-MM-YYYY / DD.MM.YYYY to ISO for the DB; leave others verbatim
+    // (the filing RPC null-checks anything that is not YYYY-MM-DD).
+    const iso = (v: string | null): string | null => {
+      if (!v) return null;
+      const m = v.match(/^(\d{1,2})[.-](\d{1,2})[.-](\d{4})$/);
+      if (m) {
+        const [, d, mo, y] = m;
+        return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      }
+      return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+    };
     return {
       ok: true,
       data: {
         bus_number: s(parsed.bus_number),
         origin: s(parsed.origin),
         destination: s(parsed.destination),
-        travel_date: s(parsed.travel_date),
+        travel_date: iso(s(parsed.travel_date)),
+        travel_time: s(parsed.travel_time),
         ticket_no: s(parsed.ticket_no),
+        pnr: s(parsed.pnr),
         depot: s(parsed.depot),
         service_type: s(parsed.service_type),
+        trip_code: s(parsed.trip_code),
+        depot_phone: s(parsed.depot_phone),
+        landmark: s(parsed.landmark),
+        has_qr: typeof parsed.has_qr === 'boolean' ? parsed.has_qr : null,
       },
     };
   } catch (e) {
@@ -576,15 +602,25 @@ async function submitComplaint(sb: ReturnType<typeof client>, chatId: number, d:
     p_contact_phone: passenger?.phone ?? null,
     p_telegram_chat_id: chatId,
     p_travel_date: typeof d.travel_date === 'string' && d.travel_date ? d.travel_date : null,
+    // Slot for future organisers' API: ticket JSON rides along into audit.
     p_ticket_extracted: (d.ticket ?? null) as Record<string, unknown> | null,
     p_evidence: evidence.map((e) => ({
       storage_path: e.path, mime_type: e.mime, size_bytes: e.size, telegram_file_id: e.file_id,
     })),
   });
   if (error || !data) {
-    console.error('telegram file failed', error);
-    await convSave(sb, chatId, 'confirm', d);
-    await tgSend(chatId, '⚠️ Something went wrong filing it. Tap Submit to try again.', confirmKb);
+    // Surface the DB's own message (shortened) — no more blind "try again".
+    const detail = String((error as { message?: string })?.message ?? 'unknown error').slice(0, 160);
+    console.error('telegram file failed', detail);
+    // Unrecoverable = the session data itself is bad: reset so the user can restart cleanly.
+    const fatal = /route|description|category|evidence payload/i.test(detail);
+    if (fatal) {
+      await convClear(sb, chatId);
+      await tgSend(chatId, `⚠️ Could not file: ${detail}\n\nSend /complain to start fresh — your photos stay safe in storage.`, menuKb);
+    } else {
+      await convSave(sb, chatId, 'confirm', d);
+      await tgSend(chatId, `⚠️ Temporary hiccup (${detail}). Tap Submit to try again.`, confirmKb);
+    }
     return;
   }
   if (passenger) {
@@ -616,10 +652,15 @@ function ticketSummary(t: TicketExtract): string {
   const lines = [
     t.bus_number ? `• Bus: ${t.bus_number}` : null,
     t.origin || t.destination ? `• Route: ${t.origin ?? '?'} → ${t.destination ?? '?'}` : null,
-    t.travel_date ? `• Date: ${t.travel_date}` : null,
+    t.travel_date ? `• Date: ${t.travel_date}${t.travel_time ? ` ${t.travel_time}` : ''}` : null,
     t.ticket_no ? `• Ticket: ${t.ticket_no}` : null,
+    t.pnr ? `• PNR: ${t.pnr}` : null,
     t.service_type ? `• Service: ${t.service_type}` : null,
+    t.trip_code ? `• Trip code: ${t.trip_code}` : null,
     t.depot ? `• Depot: ${t.depot}` : null,
+    t.depot_phone ? `• Depot phone: ${t.depot_phone}` : null,
+    t.landmark ? `• Landmark: ${t.landmark}` : null,
+    t.has_qr ? '• QR code: present' : null,
   ].filter(Boolean);
   return lines.length ? lines.join('\n') : '(nothing readable)';
 }
@@ -1313,6 +1354,30 @@ Deno.serve(async (req: Request): Promise<Response> => {
         p_offset: Number(q.get('offset') ?? 0),
         p_status: q.get('status') || null,
         p_category: q.get('category') || null,
+      });
+      if (error) return mapDbError(error);
+      return json(data);
+    }
+
+    // -- passenger account panel (website "My Account") --------------------
+    // Chat-keyed self-service: the panel only exposes what that chat already
+    // owns (its own trips/complaints, no PII beyond operational phone data).
+    if (path === '/api/v1/my/trips' && req.method === 'GET') {
+      const chat = Number(q.get('chat_id'));
+      if (!Number.isInteger(chat) || chat <= 0) return json({ detail: 'chat_id required' }, 422);
+      const sb = client();
+      const { data, error } = await sb.rpc('app_my_trips', {
+        p_chat_id: chat, p_limit: Number(q.get('limit') ?? 10),
+      });
+      if (error) return mapDbError(error);
+      return json(data);
+    }
+    if (path === '/api/v1/my/complaints' && req.method === 'GET') {
+      const chat = Number(q.get('chat_id'));
+      if (!Number.isInteger(chat) || chat <= 0) return json({ detail: 'chat_id required' }, 422);
+      const sb = client();
+      const { data, error } = await sb.rpc('app_my_complaints', {
+        p_chat_id: chat, p_limit: Number(q.get('limit') ?? 10),
       });
       if (error) return mapDbError(error);
       return json(data);

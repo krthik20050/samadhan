@@ -16,6 +16,7 @@ import { ReviewComplaint } from './pages/ReviewComplaint';
 import { ComplaintSuccess } from './pages/ComplaintSuccess';
 import { TrackComplaint } from './pages/TrackComplaint';
 import { PublicDashboard } from './pages/PublicDashboard';
+import { MyAccount } from './pages/MyAccount';
 
 // Authentication page
 import { Login } from './pages/Login';
@@ -41,6 +42,7 @@ function App() {
                 <Route path="/file-complaint/review" element={<ReviewComplaint />} />
                 <Route path="/file-complaint/success" element={<ComplaintSuccess />} />
                 <Route path="/track" element={<TrackComplaint />} />
+                <Route path="/account" element={<MyAccount />} />
                 <Route path="/public" element={<PublicDashboard />} />
               </Route>
 
