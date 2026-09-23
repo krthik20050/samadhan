@@ -1,0 +1,127 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #164E48;
+  --color-primary-dark: #0B302D;
+  --color-page-bg: #F5F3EE;
+  --color-surface-white: #FFFFFF;
+  --color-surface-secondary: #ECEAE4;
+  --color-border: #D9D7D0;
+  --color-border-subtle: #E7E5DF;
+  --color-text-primary: #171A19;
+  --color-text-secondary: #6B706C;
+  --color-text-muted: #8B908B;
+  --color-accent: #D8FF3E;
+  --color-success: #247A52;
+  --color-warning: #A56B20;
+  --color-error: #B34747;
+  --color-info: #416A82;
+
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-display: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-malayalam: 'Noto Sans Malayalam', sans-serif;
+}
+
+:root {
+  --background: #F5F3EE;
+  --surface: #FFFFFF;
+  --surface-secondary: #ECEAE4;
+  --text-primary: #171A19;
+  --text-secondary: #6B706C;
+  --text-muted: #8B908B;
+  --brand: #164E48;
+  --brand-dark: #0B302D;
+  --accent: #D8FF3E;
+  --border: #D9D7D0;
+  --border-subtle: #E7E5DF;
+  --success: #247A52;
+  --warning: #A56B20;
+  --error: #B34747;
+  --info: #416A82;
+
+  --radius-sm: 8px;
+  --radius-button: 10px;
+  --radius-input: 10px;
+  --radius-card: 14px;
+  --radius-surface: 18px;
+
+  --duration-fast: 140ms;
+  --duration-normal: 200ms;
+  --duration-slow: 320ms;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-sans);
+  background-color: #F5F3EE;
+  color: #171A19;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Strict grid container: max-width 1280px with clean rhythm */
+.app-container {
+  width: 100%;
+  max-width: 1280px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+@media (min-width: 640px) {
+  .app-container {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .app-container {
+    padding-left: 32px;
+    padding-right: 32px;
+  }
+}
+
+/* Accessible, crisp focus ring with brand color */
+:focus-visible {
+  outline: 2px solid #164E48;
+  outline-offset: 2px;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Restrained scrollbars matching warm paper surface */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: #F5F3EE;
+}
+::-webkit-scrollbar-thumb {
+  background: #D9D7D0;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #B8B5AC;
+}
+
+/* Reduced motion compliance */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
