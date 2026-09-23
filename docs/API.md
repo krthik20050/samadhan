@@ -1,0 +1,51 @@
+# API contract (MVP, v1)
+
+Base: `http://localhost:8000/api/v1`. Only `GET /health` (root level) is
+implemented in the foundation; everything below is the contract to build
+against. Unimplemented routes currently return `501 Not Implemented`.
+
+## POST /api/v1/complaints — file a complaint
+Purpose: validate, resolve depot, compute SLA, persist, return reference.
+```json
+// request
+{"bus_number":"KL-15-1234","route_text":"Adoor - Ernakulam","route_id":null,
+ "category":"overcrowding","location_text":"Kottarakkara stop",
+ "description":"Bus was severely overcrowded, ...","contact_phone":"+91..."}
+```
+Validation: `category` in enum; `description` >= 10 chars; either
+`route_id` or `route_text` required; unknown route => accepted with
+`depot_id=null`, status `needs_triage`.
+```json
+// 201 response
+{"reference_id":"KSRTC-2026-A1B2C3","status":"submitted","depot":"ADOOR",
+ "sla_due_at":"2026-09-25T12:00:00Z"}
+```
+Errors: `422` validation, `500` DB failure.
+
+## GET /api/v1/complaints/{reference_id} — track
+Purpose: public tracking by reference ID (no auth in MVP).
+Response `200`: complaint + `status_history` (no phone).
+Errors: `404` unknown reference.
+
+## GET /api/v1/dashboard/summary — anonymised counts
+Purpose: cards for the dashboard. Query params: `from,to,depot,category`.
+Response `200`: `{totals:{...}, by_category:{...}, by_status:{...},
+sla_breaches:n, escalations:n}`. Never includes phone/identity.
+
+## GET /api/v1/dashboard/complaints — anonymised list
+Purpose: dashboard table. Paginated (`?limit&offset`), same filters.
+Items expose reference/category/status/depot/created/sla only.
+
+## POST /api/v1/complaints/{id}/evidence — attach file (TODO)
+Purpose: register a Supabase Storage upload. Body:
+`{"storage_path":"...","mime_type":"...","size_bytes":123}`.
+
+## POST /api/v1/complaints/{id}/status — change status (TODO)
+Purpose: ops update. Body: `{"to_status":"in_review","note":"...","changed_by":"depot-officer"}`.
+Appends to `status_history`. Errors: `404`, `422` illegal transition.
+
+## POST /api/v1/complaints/{id}/escalate — escalate (TODO)
+Purpose: manual escalation. Appends history, sets `escalated`.
+
+## GET /api/v1/routes, GET /api/v1/depots — lookups (TODO)
+Purpose: populate form dropdowns from real KSRTC data. `?q=` search.

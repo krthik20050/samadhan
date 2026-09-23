@@ -1,0 +1,9 @@
+from fastapi import APIRouter
+
+from . import complaints, dashboard, lookups, whatsapp
+
+router = APIRouter(prefix="/api/v1")
+router.include_router(whatsapp.router, prefix="/whatsapp", tags=["whatsapp"])
+router.include_router(complaints.router, prefix="/complaints", tags=["complaints"])
+router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
+router.include_router(lookups.router, prefix="", tags=["lookups"])
