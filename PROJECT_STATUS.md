@@ -1,7 +1,41 @@
 # Project status
 
 - **Current phase:** CORE MVP IMPLEMENTATION
-- **Status:** FULL LOOP LIVE (submit → track → dashboard) — next: SLA breach checker + escalate (Phase 6)
+- **Status:** BACKEND LIVE ON SUPABASE — Edge Function + RPCs; Telegram bot wired (@esamadhanbot)
+- **API base (hosted):** https://ikipstqlumypppfypdrx.supabase.co/functions/v1/api
+- **Frontend prod:** https://frontend-ruddy-seven-46.vercel.app (set VITE_API_URL to the API base above in Vercel)
+
+## Hosting model (Supabase-only)
+
+- Logic lives in Postgres RPCs: `database/migrations/005_supabase_rpcs.sql`
+  (file/track/lookups/summary/staff list, `app_route_text_od_key` reuses the
+  migration-004 normalizer chain, `app_sla_sweep` scheduled via pg_cron when enabled).
+- One Edge Function routes HTTP: `supabase/functions/api` (Deno/supabase-js,
+  service-role only, staff Bearer + Telegram secret enforced, CORS *, FastAPI-compatible shapes).
+- Deploy: `npx supabase functions deploy api --project-ref ikipstqlumypppfypdrx`
+  (needs SUPABASE_ACCESS_TOKEN); secrets via `supabase secrets set`.
+- Telegram webhook: registered to `<api>/api/v1/telegram/webhook` with secret header
+  (`backend/scripts/setup_telegram_webhook.py info` to inspect).
+- Render (`grievance-api`) is redundant — safe to pause/delete.
+- FastAPI (`backend/`) remains the local-dev + pytest harness (37 tests, same contract).
+
+## Dataset integration (this change)
+
+- `database/migrations/004_lookup_hardening.sql`: `route_aliases` table,
+  `routes.od_match_key` (trigger-maintained canonical OD key, SQL port of the
+  dataset normaliser incl. alias table), depot email/zone/pincode,
+  `import_runs` provenance table.
+- `backend/scripts/import_dataset.py`: idempotent COPY-based import of
+  `../dataset/data/final/*.csv` (depots, routes, VERIFIED+PROBABLE mappings,
+  5,881 aliases); run log recorded per import.
+- Route resolution now matches passenger spellings: `'Guruvayoor to
+  Kozhikode'` → dataset route `'Guruvayur - Kozhikode'` → VERIFIED depot.
+  Colliding canonical corridors (e.g. published as both 'X - Ernakulam' and
+  'X - Kochi') resolve only when exactly one candidate has a VERIFIED depot,
+  else fall to needs_triage (never a guess).
+- `GET /api/v1/routes` + `GET /api/v1/depots` are live (search + bounded
+  limits) and power the complaint-form stop suggestions; frontend gained
+  `lookupService` with offline fallback to the static stop list.
 
 ## Completed
 

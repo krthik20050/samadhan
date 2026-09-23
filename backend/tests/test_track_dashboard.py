@@ -8,6 +8,7 @@ TRACK_ALLOW = {"reference_id", "bus_number", "route_text", "category", "priority
                "status", "depot", "sla_due_at", "sla_breached", "created_at", "history"}
 DASH_ALLOW = {"reference_id", "category", "status", "priority",
               "depot", "sla_breached", "created_at"}
+STAFF = {"headers": {"Authorization": "Bearer test-staff-token"}}
 
 
 def _make():
@@ -38,9 +39,24 @@ def test_dashboard():
     try:
         s = client.get("/api/v1/dashboard/summary").json()
         assert s["complaints"] >= 1 and s["by_status"]["submitted"] >= 1
-        lst = client.get("/api/v1/dashboard/complaints?limit=5").json()
+        lst = client.get("/api/v1/dashboard/complaints?limit=5", **STAFF).json()
         assert lst["total"] >= 1 and lst["limit"] == 5
         assert set(lst["items"][0]) <= DASH_ALLOW
-        assert client.get("/api/v1/dashboard/complaints?status=bogus").status_code == 422
+        assert client.get("/api/v1/dashboard/complaints?status=bogus", **STAFF).status_code == 422
     finally:
         cleanup(ref)
+
+
+def test_dashboard_list_requires_staff():
+    assert client.get("/api/v1/dashboard/complaints").status_code == 401
+    assert client.get("/api/v1/dashboard/complaints",
+                      headers={"Authorization": "Bearer wrong"}).status_code == 401
+    # summary stays public (transparency page aggregates)
+    assert client.get("/api/v1/dashboard/summary").status_code != 401
+
+
+def test_staff_login():
+    assert client.post("/api/v1/auth/login",
+                       json={"password": "test-staff-token"}).status_code == 200
+    assert client.post("/api/v1/auth/login",
+                       json={"password": "wrong"}).status_code == 401

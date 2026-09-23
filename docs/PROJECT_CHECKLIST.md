@@ -16,11 +16,13 @@ Legend: `[ ]` not started, `[x]` completed.
 - [x] Ran `003_hardening.sql` (RLS, triggers, guards, indexes)
 - [x] Verified RLS: enabled on all 7 tables, 0 public policies
 - [x] Imported real data: 112 depots, 2884 routes, 339 mappings (2663 source rows genuinely unmapped/UNKNOWN — skipped by design)
+- [x] Scripted, idempotent dataset import (`backend/scripts/import_dataset.py`) + `004_lookup_hardening.sql` (route_aliases, od_match_key, depot contacts, import_runs)
+- [x] Alias-aware route resolution (passenger spellings → dataset routes → VERIFIED depot)
 - [ ] Verify anonymised dashboard viewShape
 
 ## PHASE 2 — Backend foundation (MUST HAVE)
 - [x] `GET /health`
-- [ ] DB session wiring (blocked on live DATABASE_URL)
+- [x] DB session wiring (live Supabase DATABASE_URL)
 - [ ] Error handler + request logging
 
 ## PHASE 3 — Complaint submission (MUST HAVE)
@@ -51,7 +53,9 @@ Legend: `[ ]` not started, `[x]` completed.
 - [ ] Free-text -> schema adapter (pluggable, optional)
 
 ## PHASE 11 — WhatsApp (STRETCH)
-- [ ] Webhook + adapter into `POST /complaints`
+- [x] Telegram webhook + adapter (`/api/v1/telegram/webhook`, /start //track, filing; see docs/TELEGRAM.md)
+- [x] WhatsApp webhook + adapter (same complaint flow)
+- [ ] Public HTTPS + setWebhook registration (needs deployed backend or tunnel)
 
 ## PHASE 12 — Ticket OCR/QR (STRETCH)
 - [ ] Prefill bus/route from scan

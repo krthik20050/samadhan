@@ -71,6 +71,13 @@ export const authService = {
   },
 
   /**
+   * Bearer token for staff API calls (the verified admin secret, or null).
+   */
+  staffToken: (): string | null => {
+    return null;
+  },
+
+  /**
    * Admin authorization is determined by Clerk public metadata.
    *
    * The actual check is performed in AuthContext:

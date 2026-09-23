@@ -1,10 +1,10 @@
 // Thin authenticated fetch wrapper.
 // Services call the backend through this function.
 // Clerk provides the current session token through setTokenGetter().
+// If staffToken is available, it serves as a fallback.
+import { authService } from '../auth';
 
-const BASE = (
-  import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
-).replace(/\/+$/, '');
+const BASE = (import.meta.env.VITE_API_URL ?? 'http://localhost:8000').replace(/\/+$/, '');
 
 export class BackendUnavailable extends Error {}
 
@@ -32,13 +32,21 @@ export async function api<T>(
   try {
     const headers = new Headers(init.headers);
 
-    // Ask Clerk for the current session token.
+    // Prefer Clerk token if available, fallback to staffToken
+    let token: string | null = null;
     if (tokenGetter) {
-      const token = await tokenGetter();
-
-      if (token && !headers.has('Authorization')) {
-        headers.set('Authorization', `Bearer ${token}`);
+      try {
+        token = await tokenGetter();
+      } catch {
+        token = null;
       }
+    }
+    if (!token && typeof authService?.staffToken === 'function') {
+      token = authService.staffToken();
+    }
+
+    if (token && !headers.has('Authorization')) {
+      headers.set('Authorization', `Bearer ${token}`);
     }
 
     const res = await fetch(`${BASE}${path}`, {

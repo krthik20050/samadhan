@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useComplaintDraft } from '../hooks/useComplaintDraft';
 import { COMPLAINT_CATEGORIES } from '../lib/constants';
 import type { ComplaintCategory } from '../types';
 import { useLanguage } from '../hooks/useLanguage';
+import { lookupService } from '../lib/api';
 import { Button } from '../components/common/Button';
 import { Input } from '../components/common/Input';
 import { CategoryCard } from '../components/complaint/CategoryCard';
@@ -45,7 +46,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   HelpCircle,
 };
 
-const KERALA_STOPS = [
+const STATIC_KERALA_STOPS = [
   'Alappuzha',
   'Aluva',
   'Angamaly',
@@ -127,6 +128,31 @@ export const FileComplaint: React.FC = () => {
 
   const [validationError, setValidationError] = useState<string | null>(null);
 
+  // Dataset-backed stop suggestions (505 official KSRTC stations from the
+  // scrape, via GET /api/v1/routes). Falls back to the static list offline.
+  const [keralaStops, setKeralaStops] = useState<string[]>(STATIC_KERALA_STOPS);
+  useEffect(() => {
+    let cancelled = false;
+    lookupService
+      .searchRoutes('', 200)
+      .then((routes) => {
+        if (cancelled || routes.length === 0) return;
+        const stops = new Set<string>();
+        for (const r of routes) {
+          stops.add(r.origin);
+          stops.add(r.destination);
+        }
+        const merged = [...stops].sort((a, b) => a.localeCompare(b));
+        if (merged.length >= STATIC_KERALA_STOPS.length) setKeralaStops(merged);
+      })
+      .catch(() => {
+        /* offline: keep static list */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const activeCategoryMeta =
     COMPLAINT_CATEGORIES.find((c) => c.id === selectedCategory) || COMPLAINT_CATEGORIES[0];
   const CategoryIcon = ICON_MAP[activeCategoryMeta.iconName] || HelpCircle;
@@ -204,7 +230,7 @@ export const FileComplaint: React.FC = () => {
     <div className="app-container py-12 sm:py-16 text-left max-w-3xl">
       {/* HTML Datalist for Clean Route Autocomplete */}
       <datalist id="kerala-stops">
-        {KERALA_STOPS.map((stop) => (
+        {keralaStops.map((stop) => (
           <option key={stop} value={stop} />
         ))}
       </datalist>

@@ -1,8 +1,9 @@
-"""WhatsApp webhook (Phase 11 stretch) — verify + receive, no DB here."""
+"""WhatsApp webhook (Phase 11 stretch) — verify + receive, files via shared path."""
 from fastapi import APIRouter, Query, Request, Response
 from fastapi.responses import PlainTextResponse
 
 from app.core.config import get_settings
+from app.services.complaints import file_complaint
 from app.services.whatsapp import HELP, extract_message, parse_complaint_text, send_text
 
 router = APIRouter()
@@ -28,11 +29,35 @@ async def receive(request: Request):
     if not sender or not text:
         return {"status": "ignored"}
     complaint = parse_complaint_text(text)
+    if complaint is None:
+        try:  # ponytail: reply is best-effort, never fail the webhook on send error.
+            send_result = send_text(sender, HELP)
+        except Exception as exc:  # noqa: BLE001
+            send_result = {"error": str(exc)}
+        return {"status": "ok", "reply": HELP, "complaint": None, "send": send_result}
+    complaint.contact_phone = complaint.contact_phone or sender
+    try:
+        out = file_complaint(complaint)
+    except ValueError as e:
+        reply = f"Couldn't file it: {e}. {HELP}"
+        try:
+            send_result = send_text(sender, reply)
+        except Exception as exc:  # noqa: BLE001
+            send_result = {"error": str(exc)}
+        return {"status": "ok", "reply": reply,
+                "complaint": complaint.model_dump(mode="json"), "send": send_result}
+    except Exception:
+        reply = "Sorry, filing failed — please use the web form at /complain."
+        try:
+            send_result = send_text(sender, reply)
+        except Exception as exc:  # noqa: BLE001
+            send_result = {"error": str(exc)}
+        return {"status": "ok", "reply": reply,
+                "complaint": complaint.model_dump(mode="json"), "send": send_result}
     reply = (
-        f"Received ({complaint.category.value}, route: {complaint.route_text}). "
-        "Your reference ID comes with Phase 3 POST /complaints."
-        if complaint
-        else HELP
+        f"Filed {out.reference_id} ({out.status}"
+        f"{', depot: ' + out.depot if out.depot else ''}). "
+        "Track it at /track with your reference ID."
     )
     try:  # ponytail: reply is best-effort, never fail the webhook on send error.
         send_result = send_text(sender, reply)
@@ -41,6 +66,7 @@ async def receive(request: Request):
     return {
         "status": "ok",
         "reply": reply,
-        "complaint": complaint.model_dump(mode="json") if complaint else None,
+        "reference_id": out.reference_id,
+        "complaint": complaint.model_dump(mode="json"),
         "send": send_result,
     }
