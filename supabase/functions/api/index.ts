@@ -178,7 +178,9 @@ async function tgDownloadFile(fileId: string): Promise<{ bytes: Uint8Array; mime
 // ML slots: Groq vision (ticket extraction) + Sarvam (voice STT)
 // ---------------------------------------------------------------------------
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_MODEL_DEFAULT = 'meta-llama/llama-4-scout-17b-16e-instruct';
+// ponytail: Groq retired the llama-4 vision models on this account;
+// qwen3.8-27b accepts image_url parts and is the verified vision model.
+const GROQ_MODEL_DEFAULT = 'qwen/qwen3.8-27b';
 
 function groqModel(): string {
   return Deno.env.get('GROQ_MODEL') ?? GROQ_MODEL_DEFAULT;
@@ -230,7 +232,9 @@ async function extractTicketWithGroq(
     });
     if (!r.ok) return { ok: false, reason: `groq ${r.status}` };
     const body = await r.json();
-    const raw = String(body?.choices?.[0]?.message?.content ?? '{}');
+    let raw = String(body?.choices?.[0]?.message?.content ?? '{}').trim();
+    // qwen sometimes wraps JSON in markdown fences — strip them defensively.
+    raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
     const parsed = JSON.parse(raw) as Partial<TicketExtract>;
     const s = (v: unknown) => (typeof v === 'string' && v.trim() && v !== 'null' ? v.trim() : null);
     return {
