@@ -152,6 +152,7 @@ async function tgConfigureBot(): Promise<void> {
   await tgCall('setMyCommands', {
     commands: [
       { command: 'complain', description: 'File a complaint (upload your ticket)' },
+      { command: 'link', description: 'Link your account to save trips & get callbacks' },
       { command: 'my', description: 'My complaints' },
       { command: 'track', description: 'Track a complaint (e.g. /track KSRTC-2026-ABC123)' },
       { command: 'help', description: 'How to use SAMADHAN' },
@@ -292,8 +293,14 @@ const menuKb: Kb = {
   inline_keyboard: [
     [{ text: '🚨 File a complaint', callback_data: 'flow:start' }],
     [{ text: '📋 My complaints', callback_data: 'my' }],
-    [{ text: '❓ Help', callback_data: 'help' }],
+    [{ text: '🔗 Link account', callback_data: 'link' }, { text: '❓ Help', callback_data: 'help' }],
   ],
+};
+
+const linkKb = {
+  keyboard: [[{ text: '📱 Share my number', request_contact: true }]],
+  resize_keyboard: true,
+  one_time_keyboard: true,
 };
 
 const categoryKb: Kb = {
@@ -387,6 +394,35 @@ const convClaim = (sb: ReturnType<typeof client>, chatId: number, from: string, 
 
 type EvidenceItem = { file_id: string; mime: string; size: number; path: string };
 
+type Passenger = { chat_id: number; phone: string; name: string | null };
+
+async function passengerGet(sb: ReturnType<typeof client>, chatId: number): Promise<Passenger | null> {
+  const { data } = await sb.rpc('tg_passenger_get', { p_chat_id: chatId });
+  const row = Array.isArray(data) ? data[0] : data;
+  return row && row.phone ? (row as Passenger) : null;
+}
+
+/** Saved trips for a chat (most-used first). */
+async function tripsList(sb: ReturnType<typeof client>, chatId: number): Promise<
+  { route_id: string | null; route_label: string; bus_number: string | null; use_count: number }[]
+> {
+  const { data } = await sb.rpc('tg_trip_list', { p_chat_id: chatId, p_limit: 5 });
+  return ((Array.isArray(data) ? data[0] : data) ?? []) as [];
+}
+
+function tripsKb(items: { route_label: string; bus_number: string | null }[]): Kb {
+  return {
+    inline_keyboard: [
+      ...items.slice(0, 5).map((t, i) => [{
+        text: `🚌 ${t.route_label}${t.bus_number ? ` · ${t.bus_number}` : ''} (${t.use_count}×)`,
+        callback_data: `trip:${i}`,
+      }]),
+      [{ text: '🆕 Different trip', callback_data: 'flow:newtrip' }],
+      [{ text: '❌ Cancel', callback_data: 'cancel' }],
+    ],
+  };
+}
+
 function evidenceOf(d: Record<string, unknown>): EvidenceItem[] {
   return Array.isArray(d.evidence) ? (d.evidence as EvidenceItem[]) : [];
 }
@@ -394,6 +430,24 @@ function evidenceOf(d: Record<string, unknown>): EvidenceItem[] {
 // ---------------------------------------------------------------------------
 // Flow steps
 // ---------------------------------------------------------------------------
+/** Entry point for 'File a complaint': returning passengers get their trips
+ *  first (two taps to file); everyone else starts with the ticket photo. */
+async function startComplaint(sb: ReturnType<typeof client>, chatId: number) {
+  const passenger = await passengerGet(sb, chatId);
+  if (passenger) {
+    const trips = await tripsList(sb, chatId);
+    if (trips.length) {
+      await convSave(sb, chatId, 'idle', {});
+      await tgSend(
+        chatId,
+        `Welcome back${passenger.name ? `, ${passenger.name}` : ''}! Which trip had the issue?`,
+        tripsKb(trips),
+      );
+      return;
+    }
+  }
+  await askTicket(sb, chatId, {});
+}
 function fmtRoute(d: Record<string, unknown>): string {
   if (typeof d.route_name === 'string' && d.route_name) return d.route_name;
   if (typeof d.route_text === 'string' && d.route_text) return d.route_text;
@@ -510,12 +564,16 @@ async function submitComplaint(sb: ReturnType<typeof client>, chatId: number, d:
   // ponytail: conditional claim — double-tap finds a non-confirm state and is ignored, no duplicate complaint
   if (!(await convClaim(sb, chatId, 'confirm', 'creating', d))) return;
   const evidence = evidenceOf(d);
+  // Linked passengers: phone becomes the depot callback contact (operational
+  // only — never shown in analytics) and the trip is remembered for next time.
+  const passenger = await passengerGet(sb, chatId);
   const { data, error } = await sb.rpc('app_file_complaint', {
     p_category: String(d.category ?? 'other'),
     p_description: String(d.description ?? ''),
     p_route_id: typeof d.route_id === 'string' ? d.route_id : null,
     p_route_text: typeof d.route_text === 'string' && d.route_text ? d.route_text : null,
     p_bus_number: typeof d.bus_number === 'string' ? d.bus_number : null,
+    p_contact_phone: passenger?.phone ?? null,
     p_telegram_chat_id: chatId,
     p_travel_date: typeof d.travel_date === 'string' && d.travel_date ? d.travel_date : null,
     p_ticket_extracted: (d.ticket ?? null) as Record<string, unknown> | null,
@@ -528,6 +586,14 @@ async function submitComplaint(sb: ReturnType<typeof client>, chatId: number, d:
     await convSave(sb, chatId, 'confirm', d);
     await tgSend(chatId, '⚠️ Something went wrong filing it. Tap Submit to try again.', confirmKb);
     return;
+  }
+  if (passenger) {
+    await sb.rpc('tg_trip_save', {
+      p_chat_id: chatId,
+      p_route_id: typeof d.route_id === 'string' ? d.route_id : null,
+      p_route_label: fmtRoute(d) === '(no route)' ? 'Unspecified route' : fmtRoute(d),
+      p_bus_number: typeof d.bus_number === 'string' ? d.bus_number : null,
+    });
   }
   await convClear(sb, chatId);
   const out = Array.isArray(data) ? data[0] : data;
@@ -742,12 +808,41 @@ async function handleCallback(sb: ReturnType<typeof client>, cb: {
 
   switch (tag) {
     case 'flow':
-      await askTicket(sb, chatId, {});
+      if (arg1 === 'newtrip') {
+        await askTicket(sb, chatId, {});
+        return { status: 'ok' };
+      }
+      await startComplaint(sb, chatId);
+      return { status: 'ok' };
+
+    case 'trip': {
+      // Pre-fill from a saved trip: label parsed back through the dataset.
+      const trips = await tripsList(sb, chatId);
+      const t = trips[Number(arg1)];
+      if (!t) { await askTicket(sb, chatId, {}); return { status: 'ok' }; }
+      await suggestRoutes(sb, chatId, t.route_label, {
+        bus_number: t.bus_number ?? null,
+        category: null,
+      });
+      return { status: 'ok' };
+    }
+
+    case 'link':
+      await convSave(sb, chatId, 'idle', {});
+      await tgSend(
+        chatId,
+        '🔗 Link your account so SAMADHAN remembers your trips and the depot can call you back.\n\n' +
+          'Tap the button below to share your number (one tap — no typing).',
+        linkKb,
+      );
       return { status: 'ok' };
 
     case 'skip_ticket':
       await askCategory(sb, chatId, d);
       return { status: 'ok' };
+
+    case 'link': // unreachable duplicate tag guard (handled above)
+      return { status: 'ignored' };
 
     case 'ticket_ok': {
       // Route from the extracted origin/destination via the dataset.
@@ -895,6 +990,27 @@ async function handleTelegram(req: Request): Promise<Response> {
   if (chatId == null) return json({ status: 'ignored' });
   const media = mediaOf(msg);
 
+  // Contact share = account linking (one-tap onboarding).
+  if (msg?.contact?.phone_number && (msg.contact.user_id === msg.from?.id || !msg.contact.user_id)) {
+    const phone = String(msg.contact.phone_number).trim();
+    if (phone) {
+      await sb.rpc('tg_passenger_link', {
+        p_chat_id: chatId, p_phone: phone.startsWith('+') ? phone : `+${phone}`,
+        p_name: msg.contact.first_name ?? null,
+      });
+      await tgSend(
+        chatId,
+        `✅ Account linked${msg.contact.first_name ? `, ${msg.contact.first_name}` : ''}!\n\n` +
+          'From now on:\n' +
+          '• Your trips are remembered — filing a complaint is two taps\n' +
+          '• Your number goes to the depot for callbacks (never public)\n\n' +
+          'Send /complain to try it.',
+        menuKb,
+      );
+      return json({ status: 'ok', linked: true });
+    }
+  }
+
   // Commands (support /command@botname)
   const cmd = text?.match(/^\/([a-z_]+)(?:@[A-Za-z0-9_]+)?(?:\s+(.*))?$/);
   if (cmd && !media.photoFileId) {
@@ -916,6 +1032,30 @@ async function handleTelegram(req: Request): Promise<Response> {
     if (name === 'cancel') {
       await convClear(sb, chatId);
       await tgSend(chatId, 'Cancelled — nothing was filed.', menuKb);
+      return json({ status: 'ok' });
+    }
+    if (name === 'link') {
+      const existing = await passengerGet(sb, chatId);
+      if (existing) {
+        await tgSend(
+          chatId,
+          `✅ Already linked (${existing.phone}). Your trips are saved automatically after each complaint.\n\n` +
+            'Send /unlink to remove your account from this chat.',
+          menuKb,
+        );
+      } else {
+        await tgSend(
+          chatId,
+          '🔗 Link your account so SAMADHAN remembers your trips and the depot can call you back.\n\n' +
+            'Tap the button below to share your number (one tap — no typing).',
+          linkKb,
+        );
+      }
+      return json({ status: 'ok' });
+    }
+    if (name === 'unlink') {
+      await sb.rpc('tg_passenger_unlink', { p_chat_id: chatId });
+      await tgSend(chatId, 'Account unlinked. Your past complaints are unaffected.', menuKb);
       return json({ status: 'ok' });
     }
     if (name === 'my') { await sendMyComplaints(sb, chatId); return json({ status: 'ok' }); }
