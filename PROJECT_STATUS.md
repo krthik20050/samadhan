@@ -39,6 +39,11 @@
 
 ## Completed
 
+- **Accounts + analytics (this change):** Clerk user auth (Google/email) on the
+  website, `app_users` + `complaints.user_id` ownership (migration 010),
+  `GET /api/v1/me` account panel, `GET /api/v1/admin/analytics`
+  (received/pending/in-review/escalated/urgent/district/depot), admin
+  dashboard + My Account rebuilt on them. Setup: `docs/AUTH_SETUP.md`.
 - Repo structure, `.gitignore`, `.env.example`
 - Docs: ARCHITECTURE, DATABASE, API, DEVELOPMENT, PROJECT_CHECKLIST, DEMO, DECISIONS
 - FastAPI foundation (`GET /health`, config, schemas, reference-ID service, tests)

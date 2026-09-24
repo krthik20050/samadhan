@@ -1,6 +1,6 @@
 import type { ComplaintCategory, ComplaintData, ComplaintStatus, TimelineEvent } from '../../types';
 import { getStoredChatId } from '../../pages/MyAccount';
-import { authService } from '../auth';
+import { staffSession } from '../auth';
 import {
   api,
   type BackendComplaintOut,
@@ -156,7 +156,7 @@ function fromDashboardItem(d: BackendDashboardItem): ComplaintData {
 export const complaintsService = {
   async getAll(): Promise<ComplaintData[]> {
     // Data breach protection: only authenticated depot admin accounts can query master registry
-    if (!authService.isAdmin()) {
+    if (!staffSession.token()) {
       throw new Error('Access Denied: Administrative authorization required to query global grievance records.');
     }
     const data = await api<{ items: BackendDashboardItem[] }>('/api/v1/dashboard/complaints?limit=100&offset=0');
@@ -269,7 +269,7 @@ export const complaintsService = {
     newStatus: ComplaintData['status'],
     note?: string
   ): Promise<ComplaintData | null> {
-    if (!authService.isAdmin()) {
+    if (!staffSession.token()) {
       throw new Error('Access Denied: Administrative authorization required to update grievance status.');
     }
     void refNumber;

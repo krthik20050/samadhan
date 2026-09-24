@@ -1,4 +1,27 @@
-import { authService } from '../auth';
+// ponytail: `getToken` is injected by AuthContext to avoid an import cycle
+// (AuthContext imports services that import this module). It resolves the
+// Clerk session token for signed-in users; staff endpoints use the staff
+// token which this module reads directly.
+let getToken: (() => Promise<string | null>) | null = null;
+
+export function setAuthTokenProvider(fn: () => Promise<string | null>): void {
+  getToken = fn;
+}
+
+async function bearerToken(): Promise<string | null> {
+  if (getToken) {
+    try {
+      const t = await getToken();
+      if (t) return t;
+    } catch {
+      /* fall through to staff token */
+    }
+  }
+  // Staff-only fallback: depot officers signed in with the shared token.
+  // (Dynamic import avoids a static cycle with lib/auth.)
+  const { staffSession } = await import('../auth');
+  return staffSession.token();
+}
 
 const BASE = (
   import.meta.env.VITE_API_URL ??
@@ -10,9 +33,8 @@ export class BackendUnavailable extends Error {}
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 15000);
-  // Staff endpoints (dashboard list) need the verified admin secret.
-  const token = authService.staffToken();
   const headers = new Headers(init?.headers);
+  const token = await bearerToken();
   if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
   try {
     const res = await fetch(`${BASE}${path}`, { ...init, headers, signal: ctrl.signal });
@@ -72,4 +94,81 @@ export interface BackendDashboardSummary {
   needs_triage: number;
   by_category: Record<string, number>;
   by_status: Record<string, number>;
+}
+
+// -- /api/v1/me (user account panel) ----------------------------------------
+export interface BackendMe {
+  profile: {
+    id: string;
+    email: string | null;
+    phone: string | null;
+    display_name: string | null;
+    telegram_chat_id: number | null;
+    role: string;
+    member_since: string;
+  };
+  stats: {
+    total_filed: number;
+    open: number;
+    resolved: number;
+    sla_breached: number;
+    ticket_receipts: number;
+    trips_saved: number;
+  };
+  recent_complaints: Array<{
+    reference_id: string;
+    category: string;
+    status: string;
+    priority: string;
+    depot: string | null;
+    district: string | null;
+    route_text: string | null;
+    bus_number: string | null;
+    has_ticket: boolean;
+    sla_breached: boolean;
+    created_at: string;
+  }>;
+  trips: Array<{
+    route_id: string | null;
+    route_label: string;
+    bus_number: string | null;
+    use_count: number;
+    last_used_at: string;
+  }>;
+}
+
+// -- /api/v1/admin/analytics -------------------------------------------------
+export interface BackendAnalytics {
+  totals: {
+    received: number;
+    today: number;
+    last_7d: number;
+    pending: number;
+    in_review: number;
+    escalated: number;
+    resolved: number;
+    sla_breached: number;
+    urgent_attention: number;
+    ticket_receipts: number;
+  };
+  by_category: Array<{ category: string; n: number }>;
+  by_district: Array<{ district: string; n: number }>;
+  by_depot: Array<{
+    depot: string;
+    district: string;
+    total: number;
+    open: number;
+    resolved: number;
+    breached: number;
+  }>;
+  recent: Array<{
+    reference_id: string;
+    category: string;
+    status: string;
+    priority: string;
+    depot: string | null;
+    district: string | null;
+    sla_breached: boolean;
+    created_at: string;
+  }>;
 }

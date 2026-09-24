@@ -30,6 +30,7 @@
 // Live sync: every write (Telegram or web) lands in the same Postgres tables the
 // website and admin panel read, so submissions appear on the next poll.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createRemoteJWKSet, jwtVerify } from 'https://esm.sh/jose@5';
 
 const HELP =
   '🚌 SAMADHAN — file a KSRTC complaint in under a minute.\n\n' +
@@ -116,13 +117,19 @@ function client() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
+/** Clerk session tokens are JWTs; the shared staff secret is an opaque string.
+ *  Only JWT-shaped bearers are routed through Clerk verification. */
+function looksLikeJwt(token: string): boolean {
+  const parts = token.split('.');
+  return parts.length === 3 && parts[0].startsWith('eyJ') && token.length > 40;
+}
+
 // -- user sessions (Supabase Auth) -----------------------------------------
 // The browser sends the Supabase access token as `Authorization: Bearer <jwt>`.
 // We verify it against the auth server (never decode-and-trust the payload),
 // then map the Clerk identity onto an app_users row via app_ensure_user —
 // which also claims any Telegram-bot-backfilled row sharing the same
 // phone/email, so bot and web identities merge into one account.
-import { createRemoteJWKSet, jwtVerify } from 'https://esm.sh/jose@5';
 
 function clerkIssuer(): string {
   // Full origin, e.g. https://honest-shepherd-12.clerk.accounts.dev
@@ -182,6 +189,8 @@ async function verifyUser(req: Request): Promise<VerifiedUser> {
   if (!auth.startsWith('Bearer ')) return { ok: false, status: 401, detail: 'sign in required' };
   const jwt = auth.slice(7).trim();
   if (!jwt) return { ok: false, status: 401, detail: 'sign in required' };
+  // Opaque staff tokens are not Clerk sessions — never verified here.
+  if (!looksLikeJwt(jwt)) return { ok: false, status: 401, detail: 'invalid or expired session' };
 
   // Cryptographic verification against Clerk's published keys — never decode-and-trust.
   let payload;
@@ -189,7 +198,10 @@ async function verifyUser(req: Request): Promise<VerifiedUser> {
     ({ payload } = await jwtVerify(jwt, clerkJwks(), {
       issuer: `${clerkIssuer()}`,
     }));
-  } catch {
+  } catch (e) {
+    if (e instanceof Error && e.message.includes('not configured')) {
+      return { ok: false, status: 503, detail: 'user auth not configured' };
+    }
     return { ok: false, status: 401, detail: 'invalid or expired session' };
   }
   const sub = typeof payload.sub === 'string' ? payload.sub : '';
@@ -1387,9 +1399,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const body = await req.json().catch(() => ({}));
       const sb = client();
       // Attach the complaint to the signer's account when a valid Clerk JWT is
-      // presented; anonymous (no token) filings keep working exactly as before.
+      // presented; the opaque staff token and anonymous filings stay anonymous.
       let filedBy: string | null = null;
-      if ((req.headers.get('authorization') ?? '').startsWith('Bearer ')) {
+      const authHeader = req.headers.get('authorization') ?? '';
+      const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+      if (bearer && looksLikeJwt(bearer)) {
         const v = await verifyUser(req);
         if (!v.ok) return json({ detail: v.detail }, v.status);
         filedBy = v.userId;

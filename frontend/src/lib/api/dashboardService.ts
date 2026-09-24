@@ -1,7 +1,14 @@
 import type { ComplaintCategory, PublicTransparencyStats } from '../../types';
+import { api, type BackendAnalytics, type BackendDashboardSummary } from './client';
+import { staffSession } from '../auth';
 
-import { api, type BackendDashboardSummary } from './client';
-import { complaintsService } from './complaintsService';
+export interface AdminAnalytics extends BackendAnalytics {}
+
+/** Staff bearer for analytics when the officer signed in with the shared token. */
+function staffAuthHeaders(): HeadersInit | undefined {
+  const token = staffSession.token();
+  return token ? { Authorization: `Bearer ${token}` } : undefined;
+}
 
 export const dashboardService = {
   async getPublicStats(): Promise<PublicTransparencyStats> {
@@ -25,22 +32,11 @@ export const dashboardService = {
     };
   },
 
-  async getAdminStats() {
-    const all = await complaintsService.getAll();
-    const total = all.length;
-    const open = all.filter((c) => c.status === 'submitted' || c.status === 'assigned').length;
-    const inProgress = all.filter((c) => c.status === 'in_progress' || c.status === 'acknowledged').length;
-    const resolved = all.filter((c) => c.status === 'resolved').length;
-    const breached = all.filter((c) => c.status === 'sla_breached' || c.status === 'escalated').length;
-
-    return {
-      total,
-      open,
-      inProgress,
-      resolved,
-      breached,
-      averageResolutionHours: null,
-      depots: [],
-    };
+  async getAdminAnalytics(): Promise<AdminAnalytics> {
+    // Works with either credential: the shared staff token (depot login) or a
+    // Clerk session whose publicMetadata.role is 'admin' — the API client
+    // resolves the right bearer automatically; the staff header wins if present.
+    const headers = staffAuthHeaders();
+    return api<AdminAnalytics>('/api/v1/admin/analytics', headers ? { headers } : undefined);
   },
 };

@@ -38,6 +38,9 @@ Telegram ─────────┼──> Edge Function /functions/v1/api �
 | `GET /api/v1/dashboard/summary` | `app_dashboard_summary` | public |
 | `GET /api/v1/dashboard/complaints` | `app_dashboard_complaints` | Bearer `ADMIN_API_TOKEN` |
 | `POST /api/v1/auth/login` | — (token compare) | public |
+| `GET /api/v1/me` | `app_me` (via `app_ensure_user`) | Clerk session JWT |
+| `GET /api/v1/admin/analytics` | `app_admin_analytics` | Bearer `ADMIN_API_TOKEN` **or** Clerk JWT with `publicMetadata.role = "admin"` |
+| `POST /api/v1/complaints` | `app_file_complaint` | public (Bearer Clerk JWT attaches the filing to that account) |
 | `POST /api/v1/telegram/webhook` | via `app_file_complaint` / `app_track_complaint` | `X-Telegram-Bot-Api-Secret-Token` |
 | `GET /api/v1/voice/status` | — | public |
 | `POST /api/v1/voice/transcribe` | Sarvam `saaras:v3` (server-side) | public |
@@ -58,7 +61,8 @@ Then set the function secrets (Dashboard → Edge Functions → Secrets, or CLI)
 
 ```bash
 supabase secrets set ADMIN_API_TOKEN=... TELEGRAM_BOT_TOKEN=... \
-  TELEGRAM_SECRET_TOKEN=... SARVAM_API_KEY=... --project-ref ikipstqlumypppfypdrx
+  TELEGRAM_SECRET_TOKEN=... SARVAM_API_KEY=... \
+  CLERK_ISSUER=... CLERK_SECRET_KEY=... --project-ref ikipstqlumypppfypdrx
 ```
 
 (`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are injected automatically.)

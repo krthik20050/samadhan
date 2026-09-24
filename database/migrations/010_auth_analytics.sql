@@ -90,7 +90,7 @@ DECLARE
   v_phone text := NULLIF(btrim(COALESCE(p_phone, '')), '');
   v_name  text := NULLIF(btrim(COALESCE(p_name, '')), '');
   v_id uuid;
-  v_existing uuid;
+  v_existing jsonb;
 BEGIN
   IF p_auth_user_id IS NULL THEN
     RAISE EXCEPTION 'auth_user_id required' USING ERRCODE = '22023';
@@ -365,7 +365,9 @@ BEGIN
                        WHERE sla_breached AND status NOT IN ('resolved','closed')),
       'urgent_attention', (SELECT count(*) FROM complaints
                            WHERE status NOT IN ('resolved','closed')
-                             AND (priority IN ('high','critical') OR sla_breached))),
+                             AND (priority IN ('high','critical') OR sla_breached)),
+      'ticket_receipts', (SELECT count(*) FROM complaints
+                          WHERE ticket_extracted IS NOT NULL)),
     'by_category', COALESCE((
       SELECT jsonb_agg(jsonb_build_object('category', x.category, 'n', x.n)
                         ORDER BY x.n DESC)
@@ -420,6 +422,30 @@ REVOKE EXECUTE ON FUNCTION
   FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION
   app_file_complaint(text,text,uuid,text,text,text,text,text,bigint,text,jsonb,jsonb,uuid)
+  TO service_role;
+
+-- Compatibility overload: a not-yet-redeployed Edge Function (or the local
+-- FastAPI harness) still calls the 12-arg v4 signature. Delegate with no user.
+CREATE OR REPLACE FUNCTION app_file_complaint(
+  p_category text, p_description text,
+  p_route_id uuid DEFAULT NULL, p_route_text text DEFAULT NULL,
+  p_bus_number text DEFAULT NULL, p_location_text text DEFAULT NULL,
+  p_contact_phone text DEFAULT NULL, p_priority text DEFAULT 'normal',
+  p_telegram_chat_id bigint DEFAULT NULL,
+  p_travel_date text DEFAULT NULL,
+  p_ticket_extracted jsonb DEFAULT NULL,
+  p_evidence jsonb DEFAULT NULL
+) RETURNS jsonb LANGUAGE plpgsql VOLATILE AS $$
+BEGIN
+  RETURN app_file_complaint(p_category, p_description, p_route_id, p_route_text,
+    p_bus_number, p_location_text, p_contact_phone, p_priority, p_telegram_chat_id,
+    p_travel_date, p_ticket_extracted, p_evidence, NULL);
+END $$;
+REVOKE EXECUTE ON FUNCTION
+  app_file_complaint(text,text,uuid,text,text,text,text,text,bigint,text,jsonb,jsonb)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION
+  app_file_complaint(text,text,uuid,text,text,text,text,text,bigint,text,jsonb,jsonb)
   TO service_role;
 
 REVOKE EXECUTE ON FUNCTION app_me(uuid,int) FROM PUBLIC, anon, authenticated;

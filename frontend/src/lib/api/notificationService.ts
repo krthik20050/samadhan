@@ -1,11 +1,11 @@
 import type { NotificationLogItem } from '../../types';
-import { authService } from '../auth';
+import { staffSession } from '../auth';
 import { api } from './client';
 
 export const notificationService = {
   async getAll(): Promise<NotificationLogItem[]> {
     // Data breach protection: notification dispatch audit log restricted to authorized staff
-    if (!authService.isAdmin()) {
+    if (!staffSession.token()) {
       throw new Error('Access Denied: Administrative authorization required to view communication audit logs.');
     }
     return api<NotificationLogItem[]>('/api/v1/notifications');
