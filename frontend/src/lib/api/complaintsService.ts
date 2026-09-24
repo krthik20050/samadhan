@@ -1,4 +1,5 @@
 import type { ComplaintCategory, ComplaintData, ComplaintStatus, TimelineEvent } from '../../types';
+import { getStoredChatId } from '../../pages/MyAccount';
 import { authService } from '../auth';
 import {
   api,
@@ -24,6 +25,9 @@ export interface SubmitComplaintPayload {
   ticketExtracted?: Record<string, unknown> | null;
   /** Already-uploaded evidence (bucket paths from uploadEvidence). */
   evidence?: { storage_path: string; mime_type: string; size_bytes: number }[];
+  /** Telegram chat id when the visitor linked their bot account — makes the
+   *  complaint show up in the bot's /my list and the web account panel. */
+  telegramChatId?: string | null;
 }
 
 /** Shape returned by POST /api/v1/extract/ticket (Groq vision slot). */
@@ -185,6 +189,7 @@ export const complaintsService = {
           travel_date: payload.travelDate || null,
           ticket_extracted: payload.ticketExtracted ?? null,
           evidence: payload.evidence ?? [],
+          telegram_chat_id: payload.telegramChatId ?? getStoredChatId() ?? null,
         }),
       });
       const nowIso = new Date().toISOString();

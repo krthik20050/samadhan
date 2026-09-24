@@ -962,8 +962,11 @@ async function handleEditArg(sb: ReturnType<typeof client>, chatId: number, arg:
 }
 
 async function sendMyComplaints(sb: ReturnType<typeof client>, chatId: number) {
-  const { data } = await sb.rpc('app_my_complaints', { p_chat_id: chatId, p_limit: 5 });
-  const items = (Array.isArray(data) ? data[0] : data) ?? [];
+  const { data } = await sb.rpc('app_my_complaints', { p_chat_id: chatId, p_limit: 10 });
+  // app_my_complaints returns { items: [...] } (jsonb_build_object wrapper).
+  const items = (data && typeof data === 'object' && Array.isArray((data as { items?: unknown[] }).items))
+    ? (data as { items: unknown[] }).items
+    : (Array.isArray(data) ? data : []);
   if (!items.length) {
     await tgSend(chatId, 'No complaints from this chat yet. Tap below to file your first one.', menuKb);
     return;
@@ -1282,6 +1285,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         p_travel_date: body.travel_date ?? null,
         p_ticket_extracted: body.ticket_extracted ?? null,
         p_evidence: body.evidence ?? null,
+        p_telegram_chat_id: body.telegram_chat_id ?? null,
       });
       if (error) return mapDbError(error);
       return json(data, 201);
