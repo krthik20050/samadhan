@@ -10,6 +10,10 @@
 //   GET  /api/v1/dashboard/summary             anonymised totals
 //   GET  /api/v1/dashboard/complaints          staff-only (Bearer token)
 //   POST /api/v1/auth/login                    staff password check
+//   GET  /api/v1/me                            user account panel (Supabase Auth JWT)
+//   GET  /api/v1/admin/analytics               staff token OR admin-role user JWT
+//   (POST /api/v1/complaints attaches the verified user when a Bearer JWT is
+//    presented; unauthenticated filings stay anonymous as before)
 //   POST /api/v1/extract/ticket                image -> structured ticket JSON (Groq vision)
 //   POST /api/v1/voice/status                  Sarvam STT configured?
 //   POST /api/v1/voice/transcribe              audio -> transcript (Sarvam)
@@ -19,6 +23,8 @@
 //   GROQ_API_KEY   — ticket photo -> structured JSON (vision LLM). GROQ_MODEL optional.
 //   SARVAM_API_KEY — voice notes -> text (STT). Also used by /api/v1/voice/*.
 //   TELEGRAM_BOT_TOKEN / TELEGRAM_SECRET_TOKEN / ADMIN_API_TOKEN — as before.
+//   CLERK_ISSUER (or CLERK_FRONTEND_API) — Clerk instance origin; user sessions.
+//   CLERK_SECRET_KEY — Backend API profile lookup + admin-role metadata.
 //   Every slot is optional at runtime: features degrade gracefully, nothing 500s.
 //
 // Live sync: every write (Telegram or web) lands in the same Postgres tables the
@@ -108,6 +114,103 @@ function client() {
   const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   if (!url || !key) throw new Error('SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not configured');
   return createClient(url, key, { auth: { persistSession: false } });
+}
+
+// -- user sessions (Supabase Auth) -----------------------------------------
+// The browser sends the Supabase access token as `Authorization: Bearer <jwt>`.
+// We verify it against the auth server (never decode-and-trust the payload),
+// then map the Clerk identity onto an app_users row via app_ensure_user —
+// which also claims any Telegram-bot-backfilled row sharing the same
+// phone/email, so bot and web identities merge into one account.
+import { createRemoteJWKSet, jwtVerify } from 'https://esm.sh/jose@5';
+
+function clerkIssuer(): string {
+  // Full origin, e.g. https://honest-shepherd-12.clerk.accounts.dev
+  const v = Deno.env.get('CLERK_ISSUER') ?? Deno.env.get('CLERK_FRONTEND_API') ?? '';
+  if (!v) throw new Error('CLERK_ISSUER not configured');
+  return v.replace(/\/+$/, '');
+}
+
+let jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
+function clerkJwks(): ReturnType<typeof createRemoteJWKSet> {
+  if (!jwks) {
+    jwks = createRemoteJWKSet(new URL(`${clerkIssuer()}/.well-known/jwks.json`));
+  }
+  return jwks;
+}
+
+// Email/name/profile for the verified user, from Clerk's Backend API.
+// The default session JWT carries only sub/sid, so profile fields come from here.
+async function clerkUserProfile(userId: string): Promise<{
+  email: string | null; phone: string | null; name: string | null; role: string | null;
+}> {
+  const sk = Deno.env.get('CLERK_SECRET_KEY');
+  if (!sk) return { email: null, phone: null, name: null, role: null };
+  try {
+    const r = await fetch(`https://api.clerk.com/v1/users/${encodeURIComponent(userId)}`, {
+      headers: { Authorization: `Bearer ${sk}` },
+    });
+    if (!r.ok) return { email: null, phone: null, name: null, role: null };
+    const u = await r.json() as {
+      email_addresses?: { email_address: string }[];
+      phone_numbers?: { phone_number: string }[];
+      first_name?: string | null; last_name?: string | null;
+      primary_email_address_id?: string | null;
+      primary_phone_number_id?: string | null;
+      public_metadata?: Record<string, unknown>;
+    };
+    const email = u.primary_email_address_id
+      ? u.email_addresses?.find((e) => e.email_address)?.email_address
+        ?? u.email_addresses?.[0]?.email_address ?? null
+      : u.email_addresses?.[0]?.email_address ?? null;
+    const phone = u.primary_phone_number_id
+      ? u.phone_numbers?.find((p) => p.phone_number)?.phone_number
+        ?? u.phone_numbers?.[0]?.phone_number ?? null
+      : u.phone_numbers?.[0]?.phone_number ?? null;
+    const name = [u.first_name, u.last_name].filter(Boolean).join(' ') || null;
+    const metaRole = typeof u.public_metadata?.role === 'string' ? u.public_metadata.role : null;
+    return { email, phone, name, role: metaRole === 'admin' ? 'admin' : null };
+  } catch {
+    return { email: null, phone: null, name: null, role: null };
+  }
+}
+
+type VerifiedUser = { ok: true; userId: string; role: string } | { ok: false; status: number; detail: string };
+
+async function verifyUser(req: Request): Promise<VerifiedUser> {
+  const auth = req.headers.get('authorization') ?? '';
+  if (!auth.startsWith('Bearer ')) return { ok: false, status: 401, detail: 'sign in required' };
+  const jwt = auth.slice(7).trim();
+  if (!jwt) return { ok: false, status: 401, detail: 'sign in required' };
+
+  // Cryptographic verification against Clerk's published keys — never decode-and-trust.
+  let payload;
+  try {
+    ({ payload } = await jwtVerify(jwt, clerkJwks(), {
+      issuer: `${clerkIssuer()}`,
+    }));
+  } catch {
+    return { ok: false, status: 401, detail: 'invalid or expired session' };
+  }
+  const sub = typeof payload.sub === 'string' ? payload.sub : '';
+  if (!sub) return { ok: false, status: 401, detail: 'invalid or expired session' };
+
+  const profile = await clerkUserProfile(sub);
+  const { data: ensured, error: ensureErr } = await client().rpc('app_ensure_user', {
+    p_auth_user_id: sub,
+    p_email: profile.email,
+    p_phone: profile.phone,
+    p_name: profile.name,
+  });
+  if (ensureErr || !ensured || typeof ensured !== 'object' || !('id' in (ensured as object))) {
+    console.error('app_ensure_user failed', ensureErr);
+    return { ok: false, status: 500, detail: 'account lookup failed' };
+  }
+  const row = ensured as { id: string; role: string };
+  // Clerk public_metadata.role === 'admin' is the source of truth for staff;
+  // otherwise the app_users role (default passenger) applies.
+  const role = profile.role === 'admin' ? 'admin' : (row.role ?? 'passenger');
+  return { ok: true, userId: row.id, role };
 }
 
 function mapDbError(e: { code?: string; message?: string } | null): Response {
@@ -1242,7 +1345,17 @@ async function handleUpload(req: Request): Promise<Response> {
 // Router
 // ---------------------------------------------------------------------------
 Deno.serve(async (req: Request): Promise<Response> => {
-  if (req.method === 'OPTIONS') return new Response(null, { status: 204 });
+  if (req.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers':
+          'authorization, content-type, x-telegram-bot-api-secret-token',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      },
+    });
+  }
 
   const url = new URL(req.url);
   // Supabase's gateway strips /functions/v1 but KEEPS the function name:
@@ -1273,6 +1386,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (path === '/api/v1/complaints' && req.method === 'POST') {
       const body = await req.json().catch(() => ({}));
       const sb = client();
+      // Attach the complaint to the signer's account when a valid Clerk JWT is
+      // presented; anonymous (no token) filings keep working exactly as before.
+      let filedBy: string | null = null;
+      if ((req.headers.get('authorization') ?? '').startsWith('Bearer ')) {
+        const v = await verifyUser(req);
+        if (!v.ok) return json({ detail: v.detail }, v.status);
+        filedBy = v.userId;
+      }
       const { data, error } = await sb.rpc('app_file_complaint', {
         p_category: body.category,
         p_description: body.description,
@@ -1286,6 +1407,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         p_ticket_extracted: body.ticket_extracted ?? null,
         p_evidence: body.evidence ?? null,
         p_telegram_chat_id: body.telegram_chat_id ?? null,
+        p_user_id: filedBy,
       });
       if (error) return mapDbError(error);
       return json(data, 201);
@@ -1396,6 +1518,41 @@ Deno.serve(async (req: Request): Promise<Response> => {
         return json({ role: 'admin' });
       }
       return json({ detail: 'invalid staff credentials' }, 401);
+    }
+
+    // -- user account panel (Clerk session) --------------------------------
+    // Everything the "My Account" page shows: profile, counts (filed / open /
+    // resolved / ticket receipts / trips), recent complaints with reference IDs.
+    if (path === '/api/v1/me' && req.method === 'GET') {
+      const v = await verifyUser(req);
+      if (!v.ok) return json({ detail: v.detail }, v.status);
+      const sb = client();
+      const { data, error } = await sb.rpc('app_me', {
+        p_user_id: v.userId,
+        p_limit: Number(q.get('limit') ?? 20),
+      });
+      if (error) return mapDbError(error);
+      return json(data);
+    }
+
+    // -- admin analytics (staff token OR admin-role Clerk user) -------------
+    // Received / pending / in-review / escalated / resolved / urgent-attention,
+    // plus category, DISTRICT and depot breakdowns and recent items.
+    if (path === '/api/v1/admin/analytics' && req.method === 'GET') {
+      const bearer = req.headers.get('authorization') ?? '';
+      let staffOk = false;
+      if (bearer.startsWith('Bearer ') && adminToken()) {
+        staffOk = constantTimeEqual(bearer.slice(7).trim(), adminToken());
+      }
+      if (!staffOk) {
+        const v = await verifyUser(req);
+        if (!v.ok) return json({ detail: v.detail }, v.status);
+        if (v.role !== 'admin') return json({ detail: 'staff auth required' }, 403);
+      }
+      const sb = client();
+      const { data, error } = await sb.rpc('app_admin_analytics');
+      if (error) return mapDbError(error);
+      return json(data);
     }
 
     // -- telegram --------------------------------------------------------

@@ -2,10 +2,10 @@
 from fastapi import APIRouter, File, Form, UploadFile
 from fastapi.responses import JSONResponse
 
+from app.services import sarvam
 from app.services.sarvam import (
     SarvamNotConfigured,
     SarvamTranscriptionError,
-    transcribe_bytes,
 )
 
 router = APIRouter()
@@ -26,7 +26,7 @@ async def transcribe(
     raw = await file.read()
     name = file.filename or "recording.webm"
     try:
-        body = transcribe_bytes(raw, filename=name, language_code=language_code)
+        body = sarvam.transcribe_bytes(raw, filename=name, language_code=language_code)
     except SarvamNotConfigured:
         return JSONResponse({"detail": "voice transcription not configured"}, status_code=503)
     except SarvamTranscriptionError as exc:

@@ -7,8 +7,6 @@ c = TestClient(app)
 
 
 def test_voice_status_without_key(monkeypatch):
-    monkeypatch.setattr(sarvam.get_settings().__class__, "SARVAM_API_KEY", None)
-    # Settings are cached — patch the service check instead
     from app.core import config
 
     config.get_settings.cache_clear()
