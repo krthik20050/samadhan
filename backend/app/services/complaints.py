@@ -1,57 +1,97 @@
-"""Shared complaint filing: validate -> depot -> SLA -> persist -> reference ID.
+"""Shared complaint filing — ONE pipeline for every channel.
 
-Used by POST /complaints and the WhatsApp webhook — one path, no drift.
+The Postgres RPC ``app_file_complaint`` (migrations 005→011) is the single
+source of truth for validation, route→depot resolution, SLA, reference-ID
+issuance and idempotent replay. This service delegates to it so the FastAPI
+harness (website + WhatsApp + Telegram local dev) and the hosted Edge Function
+behave identically (AUDIT.md H-4: no divergent re-implementations).
 """
 from __future__ import annotations
 
 import psycopg2
+from psycopg2.extras import Json
 
 from app.core.db import get_conn
 from app.schemas.complaint import ComplaintCreate, ComplaintOut
-from app.services.depot import resolve_depot
-from app.services.reference import generate_reference_id
-from app.services.sla import sla_due_at, sla_hours
+
+# The RPC raises '22023' (invalid_parameter_value) for user-input problems.
+_VALIDATION_ERRORS = (
+    psycopg2.errors.InvalidParameterValue,
+    psycopg2.errors.InvalidTextRepresentation,
+    psycopg2.errors.RaiseException,
+)
 
 
-def file_complaint(body: ComplaintCreate) -> ComplaintOut:
-    """Persist a complaint, return its reference. Raises ValueError (bad
-    route_id) / RuntimeError (no DB / ID exhaustion); other DB errors bubble."""
-    with get_conn() as conn:
-        route_uuid, depot_uuid, depot_name = resolve_depot(
-            conn, body.route_id, body.route_text
+def _to_value_error(exc: psycopg2.Error) -> ValueError:
+    """Map the RPC's 22023 validation errors onto the API's 422 contract."""
+    msg = getattr(exc, "diag", None) and exc.diag.message_primary or str(exc)
+    return ValueError(str(msg).split("\n")[0][:200])
+
+
+def file_complaint(
+    body: ComplaintCreate,
+    *,
+    source_channel: str = "web",
+    idempotency_key: str | None = None,
+    actor_id: str | None = None,
+    request_id: str | None = None,
+) -> ComplaintOut:
+    """File via the app_file_complaint RPC. Raises ValueError on validation
+    failures; DB/infrastructure errors bubble (API maps to 500)."""
+    with get_conn() as conn, conn.cursor() as cur:
+        try:
+            cur.execute(
+                "SELECT app_file_complaint(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                (
+                    body.category.value,
+                    body.description,
+                    # psycopg2 has no default UUID adapter and this codebase
+                    # never registers one — pass the RFC-4122 string form.
+                    str(body.route_id) if body.route_id else None,
+                    body.route_text,
+                    body.bus_number,
+                    body.location_text,
+                    body.contact_phone,
+                    body.priority.value,
+                    None,  # p_telegram_chat_id (bots pass it via their own paths)
+                    None,  # p_travel_date (web schema carries it later; bots via RPC)
+                    None,  # p_ticket_extracted
+                    None,  # p_evidence (uploads attach through the Edge Function)
+                    None,  # p_user_id (identity attaches at the Edge Function)
+                    source_channel,
+                    idempotency_key,
+                ),
+            )
+        except _VALIDATION_ERRORS as exc:
+            raise _to_value_error(exc) from exc
+        row = cur.fetchone()
+        out = row["app_file_complaint"] if row else None
+        if not out or not out.get("reference_id"):
+            raise RuntimeError("filing RPC returned no reference ID")
+
+        # Audit trail (best-effort — a broken audit write must not fail a filing).
+        try:
+            cur.execute(
+                "SELECT app_audit_log(%s,%s,%s,%s,%s,%s,%s)",
+                (
+                    "passenger",
+                    "complaint_filed",
+                    actor_id,
+                    "complaint",
+                    out["reference_id"],
+                    Json({
+                        "channel": source_channel,
+                        "replay": bool(out.get("idempotent_replay")),
+                    }),
+                    request_id,
+                ),
+            )
+        except Exception:  # noqa: BLE001 — audit is advisory; filing already committed
+            pass
+
+        return ComplaintOut(
+            reference_id=out["reference_id"],
+            status=out["status"],
+            depot=out.get("depot"),
+            sla_due_at=out.get("sla_due_at"),
         )
-        _, resolution_hours = sla_hours(conn, body.category.value, body.priority.value)
-        status = "submitted" if depot_uuid else "needs_triage"
-        due = sla_due_at(resolution_hours)
-
-        for _ in range(5):  # retry on reference_id collision (UNIQUE)
-            ref = generate_reference_id()
-            try:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        """INSERT INTO complaints
-                           (reference_id, bus_number, route_id, route_text, category,
-                            location_text, description, contact_phone,
-                            depot_id, status, priority, sla_due_at)
-                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-                        (ref, body.bus_number, route_uuid,
-                         (body.route_text or "").strip() or None,
-                         body.category.value, body.location_text,
-                         body.description.strip(), body.contact_phone,
-                         depot_uuid, status, body.priority.value,
-                         due),
-                    )
-                    cur.execute(
-                        """INSERT INTO status_history (complaint_id, from_status, to_status)
-                           SELECT id, NULL, %s FROM complaints WHERE reference_id = %s""",
-                        (status, ref),
-                    )
-                return ComplaintOut(
-                    reference_id=ref, status=status, depot=depot_name,
-                    sla_due_at=due,
-                )
-            except psycopg2.errors.UniqueViolation as e:
-                if "reference_id" not in str(e):
-                    raise
-                continue  # collision: retry with a fresh reference
-        raise RuntimeError("could not issue reference ID")

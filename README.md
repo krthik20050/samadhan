@@ -1518,3 +1518,37 @@ https://frontend-ruddy-seven-46.vercel.app/
 ## ❤️ SAMADHAN
 
 ### **Report it. Track it. Resolve it.**
+
+---
+
+# 🛡️ Production Hardening (September 2026)
+
+The codebase has undergone a full production-readiness pass. Highlights:
+
+- **Idempotent filing** — double-clicks and network retries return the same
+  complaint instead of creating duplicates (`X-Idempotency-Key` +
+  `app_file_complaint` v6 with a unique partial index).
+- **Audit trail** — every filing/upload writes an `audit_log` row (actor,
+  channel, request ID); request IDs echo on API responses.
+- **Security** — WhatsApp webhook now verifies `X-Hub-Signature-256` (fail
+  closed); chat-keyed account endpoints are bound to a verified identity
+  (IDOR closed); CORS is origin-pinned via the `SITE_URL` secret; Telegram
+  file downloads are size-capped before fetch.
+- **One filing pipeline** — the FastAPI harness now delegates to the same
+  authoritative Postgres RPC the Edge Function uses; provenance is stamped
+  via `complaints.source_channel`.
+- **52 passing tests** (HMAC security suite, reference-ID invariants, live
+  E2E journey), clean typecheck/build, code-split bundles.
+
+Full details: [`docs/architecture/AUDIT.md`](docs/architecture/AUDIT.md) ·
+[`docs/architecture/API_GAPS.md`](docs/architecture/API_GAPS.md) ·
+[`docs/architecture/KNOWN_LIMITATIONS.md`](docs/architecture/KNOWN_LIMITATIONS.md) ·
+[`docs/database/DATABASE_ARCHITECTURE.md`](docs/database/DATABASE_ARCHITECTURE.md) ·
+[`docs/workflows/COMPLAINT_WORKFLOW.md`](docs/workflows/COMPLAINT_WORKFLOW.md) ·
+[`docs/workflows/TELEGRAM_WORKFLOW.md`](docs/workflows/TELEGRAM_WORKFLOW.md) ·
+[`docs/operations/DEPLOYMENT.md`](docs/operations/DEPLOYMENT.md) ·
+[`docs/operations/OBSERVABILITY.md`](docs/operations/OBSERVABILITY.md).
+
+**Operator note:** apply `database/migrations/011_production_hardening.sql`
+(already applied to the dev database) and redeploy the Edge Function with
+`SITE_URL` set — see the deployment runbook.

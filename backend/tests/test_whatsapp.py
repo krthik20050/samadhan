@@ -71,7 +71,20 @@ def test_webhook_unknown_route_needs_triage():
 
 
 def test_webhook_garbage_gets_help():
-    r = c.post("/api/v1/whatsapp/webhook", json=_wa_payload("91999", "hi"))
+    # Non-greeting garbage ("hi" now opens the guided menu instead).
+    r = c.post("/api/v1/whatsapp/webhook", json=_wa_payload("91999", "ok"))
     assert r.status_code == 200
     assert r.json()["complaint"] is None
     assert "CATEGORY" in r.json()["reply"]
+
+
+def test_webhook_greeting_opens_menu():
+    from app.services import whatsapp_flow
+
+    whatsapp_flow.reset_conversations()
+    r = c.post("/api/v1/whatsapp/webhook", json=_wa_payload("91999", "hi"))
+    assert r.status_code == 200
+    body = r.json()
+    assert body["flow"] == "menu"
+    assert body["complaint"] is None if "complaint" in body else True
+    whatsapp_flow.reset_conversations()

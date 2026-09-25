@@ -62,7 +62,7 @@ async def receive(
                 "send": _send(chat_id, HELP)}
     # ponytail: Telegram chat_id is not a phone; leave contact_phone NULL (DB check).
     try:
-        out = file_complaint(complaint)
+        out = file_complaint(complaint, source_channel="telegram", actor_id=str(chat_id))
     except Exception:  # noqa: BLE001
         reply = "Sorry, filing failed — please use the web form at /complain."
         return {"status": "ok", "reply": reply,

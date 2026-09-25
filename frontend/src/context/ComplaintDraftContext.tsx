@@ -26,6 +26,10 @@ export interface DraftComplaint {
   travelDate?: string | null;
   /** Evidence already uploaded to the bucket (paths, not File objects). */
   uploadedEvidence?: UploadedEvidence[];
+  /** Client-generated submission key: retried submits (double-click, network
+   *  failure, refresh) return the original complaint instead of duplicating.
+   *  Regenerated only when the draft is reset after a successful filing. */
+  idempotencyKey?: string;
 }
 
 const DEFAULT_DRAFT: DraftComplaint = {
@@ -48,6 +52,13 @@ export interface ComplaintDraftContextType {
   resetDraft: () => void;
   lastSubmittedComplaint: ComplaintData | null;
   setLastSubmittedComplaint: (complaint: ComplaintData | null) => void;
+}
+
+/** Random URL-safe key for the idempotent-submission header. */
+export function newIdempotencyKey(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(36).padStart(2, '0')).join('').slice(0, 24);
 }
 
 export const ComplaintDraftContext = createContext<ComplaintDraftContextType | undefined>(undefined);

@@ -146,23 +146,34 @@ export const MyAccount: React.FC = () => {
       setComplaints(c.items ?? []);
     } catch (e) {
       if (e instanceof BackendUnavailable) setError('Cannot reach the server — try again shortly.');
-      else setError('Could not load your data.');
+      else if (String(e).includes('401')) {
+        setError('Your Telegram account is not linked to a signed-in web account. Sign in with the same email or phone you used in the bot.');
+      } else setError('Could not load your data.');
     } finally {
       setLoading(false);
     }
   }
 
+  // Poll only while the tab is visible, and refresh immediately when it
+  // becomes visible again (AUDIT.md M-6: ~90% fewer idle background requests).
   useEffect(() => {
-    if (signedIn) {
-      void loadAccount();
-      const timer = setInterval(() => void loadAccount(), 15000);
-      return () => clearInterval(timer);
-    }
-    if (!clerkEnabled && chatId) {
-      void loadChat(chatId);
-      const timer = setInterval(() => void loadChat(chatId), 15000);
-      return () => clearInterval(timer);
-    }
+    if (!signedIn && !(!clerkEnabled && chatId)) return;
+    const load = () => (signedIn ? loadAccount() : loadChat(chatId as string));
+    void load();
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const start = () => {
+      if (!timer) timer = setInterval(() => void load(), 15000);
+    };
+    const stop = () => {
+      if (timer) { clearInterval(timer); timer = null; }
+    };
+    const onVisibility = () => (document.hidden ? stop() : (void load(), start()));
+    if (!document.hidden) start();
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signedIn, chatId]);
 

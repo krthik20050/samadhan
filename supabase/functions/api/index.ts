@@ -75,19 +75,34 @@ function adminToken(): string {
   return Deno.env.get('ADMIN_API_TOKEN') ?? '';
 }
 
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      'Content-Type': 'application/json',
-      // Demo-grade CORS: no cookies/credentials are used, so a wildcard is
-      // safe; staff endpoints still require the Bearer token regardless.
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers':
-        'authorization, content-type, x-telegram-bot-api-secret-token',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    },
-  });
+/** Correlation id: honour an inbound X-Request-Id, else mint one. Returned on
+ *  every response and attached to audit rows + error logs (OBSERVABILITY.md).
+ *  The Edge Runtime runs one request per isolate, so a module-level current id
+ *  is request-scoped in practice. */
+let ACTIVE_REQUEST_ID = '';
+
+function requestId(req: Request): string {
+  const inbound = req.headers.get('x-request-id') ?? '';
+  if (/^[A-Za-z0-9_-]{8,64}$/.test(inbound)) return inbound;
+  return crypto.randomUUID();
+}
+
+function json(body: unknown, status = 200, reqId?: string): Response {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    // Origins are allow-listed via the SITE_URL / FRONTEND_URL function
+    // secrets (AUDIT.md C-1/H-1); the wildcard only survives while neither is
+    // configured so the demo keeps working. Staff/webhook auth is header-based
+    // and unaffected. Add your deployed frontend origin as SITE_URL.
+    'Access-Control-Allow-Origin':
+      Deno.env.get('SITE_URL') ?? Deno.env.get('FRONTEND_URL') ?? '*',
+    'Access-Control-Allow-Headers':
+      'authorization, content-type, x-telegram-bot-api-secret-token, x-request-id, x-idempotency-key',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  };
+  const id = reqId ?? ACTIVE_REQUEST_ID;
+  if (id) headers['X-Request-Id'] = id;
+  return new Response(JSON.stringify(body), { status, headers });
 }
 
 function constantTimeEqual(a: string, b: string): boolean {
@@ -183,6 +198,18 @@ async function clerkUserProfile(userId: string): Promise<{
 }
 
 type VerifiedUser = { ok: true; userId: string; role: string } | { ok: false; status: number; detail: string };
+
+/** Resolve the app_users row for the caller's Clerk identity, including the
+ *  telegram_chat_id it was merged with (bot accounts claimed by email/phone).
+ *  Used to prove chat ownership before serving chat-keyed data (AUDIT.md C-1). */
+async function verifiedChatId(req: Request): Promise<number | null> {
+  const v = await verifyUser(req);
+  if (!v.ok) return null;
+  const { data, error } = await client().rpc('app_me', { p_user_id: v.userId, p_limit: 1 });
+  if (error || !data || typeof data !== 'object') return null;
+  const chat = (data as { profile?: { telegram_chat_id?: number | null } }).profile?.telegram_chat_id;
+  return typeof chat === 'number' && chat > 0 ? chat : null;
+}
 
 async function verifyUser(req: Request): Promise<VerifiedUser> {
   const auth = req.headers.get('authorization') ?? '';
@@ -283,9 +310,17 @@ async function tgDownloadFile(fileId: string): Promise<{ bytes: Uint8Array; mime
   const meta = await tgCall('getFile', { file_id: fileId });
   const filePath = (meta as { result?: { file_path?: string } })?.result?.file_path;
   if (!filePath) return { error: 'getFile failed' };
+  // Enforce the Bot API limit server-side (AUDIT.md H-2): getFile reports
+  // file_size (absent for streams >20 MB, which Telegram refuses to serve
+  // anyway). Refuse oversized/unknown-size files BEFORE downloading bytes.
+  const metaSize = (meta as { result?: { file_size?: number } })?.result?.file_size;
+  const MAX_FILE = 20 * 1024 * 1024;
+  if (typeof metaSize === 'number' && metaSize > MAX_FILE) return { error: 'file too large (max 20 MB)' };
+  if (typeof metaSize !== 'number') return { error: 'file size unavailable' };
   const r = await fetch(`https://api.telegram.org/file/bot${token}/${filePath}`);
   if (!r.ok) return { error: `download failed (${r.status})` };
   const bytes = new Uint8Array(await r.arrayBuffer());
+  if (bytes.length > MAX_FILE) return { error: 'file too large (max 20 MB)' };
   const mime = r.headers.get('content-type') ?? 'application/octet-stream';
   return { bytes, mime };
 }
@@ -325,7 +360,14 @@ async function extractTicketWithGroq(
 ): Promise<{ ok: true; data: TicketExtract } | { ok: false; reason: string }> {
   const key = Deno.env.get('GROQ_API_KEY');
   if (!key) return { ok: false, reason: 'GROQ_API_KEY not set — paste it as a function secret' };
-  const b64 = btoa(String.fromCharCode(...bytes));
+  // ponytail: String.fromCharCode(...bytes) overflows the call stack for real
+  // photo sizes (>~100KB) -> RangeError -> webhook 500. Chunk it instead.
+  const CHUNK = 0x8000;
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  const b64 = btoa(bin);
   const prompt =
     'Read this KSRTC bus ticket image. Return ONLY a JSON object with keys ' +
     'bus_number (vehicle registration like KL-01-AB-1234 or the fleet plate e.g. PL-123, null if absent), ' +
@@ -402,7 +444,7 @@ async function transcribeVoice(bytes: Uint8Array, mime: string): Promise<{ ok: t
   if (!key) return { ok: false, reason: 'SARVAM_API_KEY not set' };
   try {
     const form = new FormData();
-    form.append('file', new File([bytes], 'voice.ogg', { type: mime || 'audio/ogg' }));
+    form.append('file', new File([bytes as BlobPart], 'voice.ogg', { type: mime || 'audio/ogg' }));
     form.append('model', 'saaras:v3');
     form.append('mode', 'transcribe');
     const r = await fetch('https://api.sarvam.ai/speech-to-text', {
@@ -504,6 +546,17 @@ const confirmKb: Kb = {
   ],
 };
 
+// AUDIT.md §30: a stray Cancel tap must not destroy an in-flight draft.
+// The first Cancel shows this confirmation; only an explicit Yes discards.
+function cancelConfirmKb(): Kb {
+  return {
+    inline_keyboard: [
+      [{ text: '🗑 Yes, cancel it', callback_data: 'cancel:confirm' }],
+      [{ text: '✏️ Continue editing', callback_data: 'back' }],
+    ],
+  };
+}
+
 const editMenuKb: Kb = {
   inline_keyboard: [
     [{ text: 'Category', callback_data: 'edit:cat' }, { text: 'Route', callback_data: 'edit:route' }],
@@ -551,7 +604,7 @@ async function tripsList(sb: ReturnType<typeof client>, chatId: number): Promise
   return ((Array.isArray(data) ? data[0] : data) ?? []) as [];
 }
 
-function tripsKb(items: { route_label: string; bus_number: string | null }[]): Kb {
+function tripsKb(items: { route_label: string; bus_number: string | null; use_count?: number }[]): Kb {
   return {
     inline_keyboard: [
       ...items.slice(0, 5).map((t, i) => [{
@@ -722,11 +775,12 @@ async function submitComplaint(sb: ReturnType<typeof client>, chatId: number, d:
     p_evidence: evidence.map((e) => ({
       storage_path: e.path, mime_type: e.mime, size_bytes: e.size, telegram_file_id: e.file_id,
     })),
+    p_source_channel: 'telegram',
   });
   if (error || !data) {
     // Surface the DB's own message (shortened) — no more blind "try again".
     const detail = String((error as { message?: string })?.message ?? 'unknown error').slice(0, 160);
-    console.error('telegram file failed', detail);
+    console.error(JSON.stringify({ event: 'telegram_file_failed', chat_id: chatId, detail }));
     // Unrecoverable = the session data itself is bad: reset so the user can restart cleanly.
     const fatal = /route|description|category|evidence payload/i.test(detail);
     if (fatal) {
@@ -748,6 +802,14 @@ async function submitComplaint(sb: ReturnType<typeof client>, chatId: number, d:
   }
   await convClear(sb, chatId);
   const out = Array.isArray(data) ? data[0] : data;
+  // AUDIT.md: cross-channel accountability — every successful bot filing is
+  // auditable (channel + chat + reference id). Best-effort; never blocks.
+  await sb.rpc('app_audit_log', {
+    p_actor_type: 'channel', p_actor_id: String(chatId),
+    p_action: 'complaint_filed', p_entity_type: 'complaint',
+    p_entity_id: (out as { reference_id?: string })?.reference_id ?? null,
+    p_detail: { channel: 'telegram', evidence: evidence.length },
+  }).then(() => undefined, () => undefined);
   await tgSend(
     chatId,
     '✅ Complaint filed and live on the website.\n\n' +
@@ -883,8 +945,12 @@ async function handleFlow(
         const meta = await tgDownloadFile(media.voiceFileId);
         if (!('error' in meta)) {
           const st = await transcribeVoice(meta.bytes, meta.mime);
-          if (st.ok && st.text.replace(/\s/g, '').length >= 10) {
-            await showConfirm(sb, chatId, { ...d0, description: `${value ? value + ' ' : ''}${st.text}`.trim() });
+          if (st.ok) {
+            if (st.text.replace(/\s/g, '').length >= 10) {
+              await showConfirm(sb, chatId, { ...d0, description: `${value ? value + ' ' : ''}${st.text}`.trim() });
+              return true;
+            }
+            await tgSend(chatId, '🎙️ That voice note was too short to transcribe. Please type it instead.', cancelKb);
             return true;
           }
           await tgSend(chatId, `🎙️ Voice transcription unavailable (${st.reason}). Please type it instead.`, cancelKb);
@@ -963,6 +1029,20 @@ async function handleCallback(sb: ReturnType<typeof client>, cb: {
   const [tag, arg1, arg2] = cb.data.split(':');
 
   switch (tag) {
+    case 'cancel':
+      // First tap asks; only an explicit confirm discards the draft.
+      if (arg1 === 'confirm') {
+        await convClear(sb, chatId);
+        await tgSend(chatId, 'Cancelled — nothing was filed. Send /complain whenever you are ready.', menuKb);
+        return { status: 'ok' };
+      }
+      if (d && Object.keys(d).length > 0) {
+        await tgSend(chatId, 'Are you sure you want to cancel?\n\nYour current complaint draft will be discarded.', cancelConfirmKb());
+        return { status: 'ok' };
+      }
+      await tgSend(chatId, 'Nothing in progress. Send /complain whenever you are ready.', menuKb);
+      return { status: 'ok' };
+
     case 'flow':
       if (arg1 === 'newtrip') {
         await askTicket(sb, chatId, {});
@@ -1021,7 +1101,7 @@ async function handleCallback(sb: ReturnType<typeof client>, cb: {
 
     case 'route':
       if (arg1 === 'raw') await askDescription(sb, chatId, { ...d, route_id: null });
-      else if (arg1 === 'skip') await askDescription(sb, chatId, { ...d, route_id: null, route_text: 'Telegram' });
+      else if (arg1 === 'skip') await askDescription(sb, chatId, { ...d, route_id: null, route_text: 'Route not selected in Telegram' });
       else if (arg1) await askDescription(sb, chatId, { ...d, route_id: arg1, route_name: arg2 ?? 'Selected route' });
       else await askRoute(sb, chatId, d);
       return { status: 'ok' };
@@ -1048,11 +1128,6 @@ async function handleCallback(sb: ReturnType<typeof client>, cb: {
 
     case 'help':
       await tgSend(chatId, HELP, menuKb);
-      return { status: 'ok' };
-
-    case 'cancel':
-      await convClear(sb, chatId);
-      await tgSend(chatId, 'Cancelled — nothing was filed. Send /complain whenever you are ready.', menuKb);
       return { status: 'ok' };
 
     default:
@@ -1189,8 +1264,14 @@ async function handleTelegram(req: Request): Promise<Response> {
     if (name === 'help') { await tgSend(chatId, HELP, menuKb); return json({ status: 'ok' }); }
     if (name === 'complain') { await askTicket(sb, chatId, {}); return json({ status: 'ok' }); }
     if (name === 'cancel') {
-      await convClear(sb, chatId);
-      await tgSend(chatId, 'Cancelled — nothing was filed.', menuKb);
+      // Mirror the button flow (AUDIT.md §30): confirm before discarding a draft.
+      const conv = await convGet(sb, chatId);
+      if (conv.state !== 'idle' && conv.data && Object.keys(conv.data).length > 0) {
+        await tgSend(chatId, 'Are you sure you want to cancel?\n\nYour current complaint draft will be discarded. Tap “Yes, cancel it” to confirm.', cancelConfirmKb());
+      } else {
+        await convClear(sb, chatId);
+        await tgSend(chatId, 'Nothing in progress. Send /complain whenever you are ready.', menuKb);
+      }
       return json({ status: 'ok' });
     }
     if (name === 'link') {
@@ -1250,8 +1331,9 @@ async function handleTelegram(req: Request): Promise<Response> {
     const { data, error } = await sb.rpc('app_file_complaint', {
       p_category: category,
       p_description: parts[2],
-      p_route_text: parts[1] || 'Telegram',
+      p_route_text: parts[1] || 'Route not specified',
       p_telegram_chat_id: chatId,
+      p_source_channel: 'telegram',
     });
     if (error || !data) {
       await tgSend(chatId, '⚠️ Could not file that — please use /complain for the guided flow.');
@@ -1347,9 +1429,14 @@ async function handleUpload(req: Request): Promise<Response> {
     contentType: file.type, upsert: false,
   });
   if (up.error) {
-    console.error('upload failed', up.error);
+    console.error(JSON.stringify({ event: 'upload_failed', error: String(up.error) }));
     return json({ detail: 'upload failed' }, 500);
   }
+  await sb.rpc('app_audit_log', {
+    p_actor_type: 'passenger', p_action: 'evidence_uploaded',
+    p_entity_type: 'evidence', p_entity_id: path,
+    p_detail: { mime: file.type, size: file.size },
+  }).then(() => undefined, () => undefined);
   return json({ storage_path: path, mime_type: file.type, size_bytes: file.size }, 201);
 }
 
@@ -1370,6 +1457,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   const url = new URL(req.url);
+  const reqId = requestId(req);
+  ACTIVE_REQUEST_ID = reqId;
   // Supabase's gateway strips /functions/v1 but KEEPS the function name:
   // '/api/health' arrives for <fn>/health, '/api/api/v1/...' for <fn>/api/v1/...
   // Strip exactly one leading 'api' segment (and tolerate the un-stripped
@@ -1408,6 +1497,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
         if (!v.ok) return json({ detail: v.detail }, v.status);
         filedBy = v.userId;
       }
+      // Idempotency (AUDIT.md H-7): a client-generated submission key makes
+      // double-clicks and network retries return the original complaint
+      // instead of filing a duplicate.
+      const idemRaw = req.headers.get('x-idempotency-key') ?? body.idempotency_key ?? '';
+      const idempotencyKey = /^[A-Za-z0-9_-]{8,128}$/.test(String(idemRaw)) ? String(idemRaw) : null;
       const { data, error } = await sb.rpc('app_file_complaint', {
         p_category: body.category,
         p_description: body.description,
@@ -1422,8 +1516,26 @@ Deno.serve(async (req: Request): Promise<Response> => {
         p_evidence: body.evidence ?? null,
         p_telegram_chat_id: body.telegram_chat_id ?? null,
         p_user_id: filedBy,
+        p_source_channel: 'web',
+        p_idempotency_key: idempotencyKey,
       });
       if (error) return mapDbError(error);
+      const out = data as { reference_id?: string; idempotent_replay?: boolean };
+      await sb.rpc('app_audit_log', {
+        p_actor_type: 'passenger',
+        p_actor_id: filedBy,
+        p_action: 'complaint_filed',
+        p_entity_type: 'complaint',
+        p_entity_id: out?.reference_id ?? null,
+        p_detail: {
+          channel: 'web', replay: out?.idempotent_replay === true,
+          evidence: Array.isArray(body.evidence) ? body.evidence.length : 0,
+        },
+        p_request_id: reqId,
+      }).then(
+        () => undefined,
+        (e: unknown) => console.error(JSON.stringify({ event: 'audit_write_failed', request_id: reqId, error: String(e) })),
+      );
       return json(data, 201);
     }
 
@@ -1500,25 +1612,32 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     // -- passenger account panel (website "My Account") --------------------
-    // Chat-keyed self-service: the panel only exposes what that chat already
-    // owns (its own trips/complaints, no PII beyond operational phone data).
-    if (path === '/api/v1/my/trips' && req.method === 'GET') {
+    // SECURITY (AUDIT.md C-1): chat-keyed data is only served to a caller who
+    // can prove the chat is theirs — a verified Clerk session merged with that
+    // chat id (app_users.telegram_chat_id, set by bot /link or email/phone
+    // match), with the ownership check re-enforced inside the RPC. An
+    // anonymous chat_id parameter alone is no longer an access capability.
+    const myTripsMatch = path === '/api/v1/my/trips' && req.method === 'GET';
+    const myComplaintsMatch = path === '/api/v1/my/complaints' && req.method === 'GET';
+    if (myTripsMatch || myComplaintsMatch) {
+      const ownerChat = await verifiedChatId(req);
+      if (ownerChat == null) {
+        return json({ detail: 'sign in required — your Telegram account must be linked to view this panel' }, 401);
+      }
       const chat = Number(q.get('chat_id'));
       if (!Number.isInteger(chat) || chat <= 0) return json({ detail: 'chat_id required' }, 422);
+      if (chat !== ownerChat) {
+        console.error(JSON.stringify({ event: 'chat_access_denied', request_id: reqId, chat, owner: ownerChat }));
+        return json({ detail: 'forbidden' }, 403);
+      }
       const sb = client();
-      const { data, error } = await sb.rpc('app_my_trips', {
-        p_chat_id: chat, p_limit: Number(q.get('limit') ?? 10),
-      });
-      if (error) return mapDbError(error);
-      return json(data);
-    }
-    if (path === '/api/v1/my/complaints' && req.method === 'GET') {
-      const chat = Number(q.get('chat_id'));
-      if (!Number.isInteger(chat) || chat <= 0) return json({ detail: 'chat_id required' }, 422);
-      const sb = client();
-      const { data, error } = await sb.rpc('app_my_complaints', {
-        p_chat_id: chat, p_limit: Number(q.get('limit') ?? 10),
-      });
+      const { data, error } = myTripsMatch
+        ? await sb.rpc('app_my_trips', {
+            p_chat_id: chat, p_limit: Number(q.get('limit') ?? 10), p_owner_chat_id: ownerChat,
+          })
+        : await sb.rpc('app_my_complaints', {
+            p_chat_id: chat, p_limit: Number(q.get('limit') ?? 10), p_owner_chat_id: ownerChat,
+          });
       if (error) return mapDbError(error);
       return json(data);
     }
@@ -1584,7 +1703,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     return json({ detail: 'Not Found' }, 404);
   } catch (e) {
-    console.error(e);
+    console.error(JSON.stringify({
+      event: 'unhandled_error', request_id: reqId, path,
+      error: e instanceof Error ? e.message : String(e),
+    }));
     const msg = e instanceof Error ? e.message : 'internal error';
     if (msg.includes('not configured')) return json({ detail: msg }, 500);
     return json({ detail: 'storage failure' }, 500);

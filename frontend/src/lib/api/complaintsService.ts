@@ -28,6 +28,8 @@ export interface SubmitComplaintPayload {
   /** Telegram chat id when the visitor linked their bot account — makes the
    *  complaint show up in the bot's /my list and the web account panel. */
   telegramChatId?: string | null;
+  /** Idempotency key (X-Idempotency-Key) — stable across submit retries. */
+  idempotencyKey?: string;
 }
 
 /** Shape returned by POST /api/v1/extract/ticket (Groq vision slot). */
@@ -178,7 +180,12 @@ export const complaintsService = {
     const routeText = `${payload.route.origin} → ${payload.route.destination}${payload.route.via ? ` via ${payload.route.via}` : ''}`;
     const out = await api<BackendComplaintOut>('/api/v1/complaints', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          // Idempotent submission (AUDIT.md H-7): the key is generated once per
+          // draft; retries return the original complaint instead of a duplicate.
+          ...(payload.idempotencyKey ? { 'X-Idempotency-Key': payload.idempotencyKey } : {}),
+        },
         body: JSON.stringify({
           bus_number: payload.busNumber || null,
           route_text: routeText,

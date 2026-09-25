@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     ADMIN_API_TOKEN: str = ""
 
     # Future / optional — never required at startup.
+    # WHATSAPP_APP_SECRET verifies the X-Hub-Signature-256 webhook signature;
+    # set it in any deployed environment (the webhook fails closed with it set).
+    WHATSAPP_APP_SECRET: str | None = None
     SARVAM_API_KEY: str | None = None
     LLM_API_KEY: str | None = None
     WHATSAPP_ACCESS_TOKEN: str | None = None

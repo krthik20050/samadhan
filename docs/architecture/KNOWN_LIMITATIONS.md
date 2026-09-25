@@ -1,0 +1,16 @@
+# Known Limitations
+
+Honest register of what cannot be fixed yet (AUDIT.md §62). Each entry: problem,
+current behavior, risk, why, mitigation, long-term fix, priority.
+
+| # | Problem | Current behavior | Risk | Why it can't be fixed now | Temporary mitigation | Long-term fix | Priority |
+|---|---|---|---|---|---|---|---|
+| 1 | Edge Function fixes (CORS pin, chat-binding enforcement, Telegram size check, request IDs, web audit rows) are in the repo but the **deployed function is the old build** | Live API still runs pre-hardening code | The chat-panel IDOR remains exploitable until redeploy | Deploy needs `SUPABASE_ACCESS_TOKEN` (user secret, not in repo) | Run: `npx supabase functions deploy api --project-ref ikipstqlumypppfypdrx`; set `SITE_URL` secret first. Migration 011 is deploy-order-safe (old calls keep working) | Redeploy immediately after handoff | **Critical** |
+| 2 | Browser-level E2E (register→file→upload→submit→refresh) not automated | API-level journey covered by `test_e2e_journey.py`; UI covered by typecheck+build only | UI regressions ship silently | Playwright + local Supabase stack not yet wired in CI | CI runs pytest (52) + typecheck + build; bot smoke script exists (`scripts/test_whatsapp_bot.py`) | Add Playwright against `supabase start` local stack, gate `RUN_E2E=1` | High |
+| 3 | WhatsApp guided-flow state is in-memory (single process) | Restart loses in-flight conversations | Users must restart the flow | Postgres mirror of `telegram_conversations` not built for WhatsApp | Documented in `whatsapp_flow.py`; seam (4 helpers) ready for the swap | Mirror 006 as `whatsapp_conversations` + RPCs | Medium |
+| 4 | Staff status writes don't persist (UI stub throws) | Admin console can't advance ticket states | Lifecycle is read-only from the console | `app_set_status` RPC not yet designed/built | Status changes via SQL by operators; trigger enforces transitions | Implement RPC + endpoint + UI (see API_GAPS "Open") | High |
+| 5 | No rate limiting on public endpoints | Platform defaults only | Cost/abuse exposure | Needs Deno KV or WAF config decisions | Supabase platform limits; monitor | Token bucket (M-4 in API_GAPS) | Medium |
+| 6 | `.env` fallback in `backend/app/core/db.py` reads plaintext env for local dev | Works, occasionally surprises | Low (file gitignored, names-only example committed) | Local dev ergonomics | `.gitignore` covers `.env` | Prefer Infisical-only once team migrates (docs/INFISICAL.md) | Low |
+| 7 | Dataset import runs manually (`scripts/import_dataset.py`) | Data freshness depends on operator | Stale routes/depots after KSRTC updates | No scheduled job host outside Supabase cron | Import is idempotent + provenance-logged | Schedule or document a quarterly run | Low |
+| 8 | Reference-ID unguessability is the only capability check on public /track | 36^6 space, rate-limit absent | Enumeration impractical but unthrottled | Rate limiting deferred (see #5) | IDs are crypto-random; no PII in track response | Pair with M-4 rate limit | Low |
+| 9 | Uptime/monitoring not provisioned | Logs only (Supabase + Vercel) | Incidents found by users | Requires external monitor account choice | docs/operations/OBSERVABILITY.md defines the plan | Add uptime probe + error tracking per plan | Medium |
