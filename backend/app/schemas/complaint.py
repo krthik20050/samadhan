@@ -49,10 +49,19 @@ class ComplaintOut(BaseModel):
     sla_due_at: datetime | None = None
 
 
+class StatusWrite(BaseModel):
+    """Staff lifecycle write. Statuses use the DB vocabulary; the RPC enforces
+    the transition map (mirroring the 003 trigger) and is idempotent when the
+    complaint is already in the target state."""
+    status: str = Field(pattern="^(submitted|needs_triage|in_review|escalated|resolved|closed)$")
+    note: str | None = Field(default=None, max_length=1000)
+
+
 class HistoryItem(BaseModel):
     from_status: str | None
     to_status: str
     changed_by: str | None = None
+    note: str | None = None
     created_at: datetime
 
 

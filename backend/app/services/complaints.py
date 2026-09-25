@@ -68,9 +68,19 @@ def file_complaint(
         out = row["app_file_complaint"] if row else None
         if not out or not out.get("reference_id"):
             raise RuntimeError("filing RPC returned no reference ID")
+        result = ComplaintOut(
+            reference_id=out["reference_id"],
+            status=out["status"],
+            depot=out.get("depot"),
+            sla_due_at=out.get("sla_due_at"),
+        )
 
-        # Audit trail (best-effort — a broken audit write must not fail a filing).
-        try:
+    # Audit in its OWN transaction: the filing has committed above. A failed
+    # audit statement must never poison the filing's transaction (otherwise
+    # get_conn's commit would silently roll back a complaint the user was
+    # already shown a reference ID for).
+    try:
+        with get_conn() as conn, conn.cursor() as cur:
             cur.execute(
                 "SELECT app_audit_log(%s,%s,%s,%s,%s,%s,%s)",
                 (
@@ -78,7 +88,7 @@ def file_complaint(
                     "complaint_filed",
                     actor_id,
                     "complaint",
-                    out["reference_id"],
+                    result.reference_id,
                     Json({
                         "channel": source_channel,
                         "replay": bool(out.get("idempotent_replay")),
@@ -86,12 +96,7 @@ def file_complaint(
                     request_id,
                 ),
             )
-        except Exception:  # noqa: BLE001 — audit is advisory; filing already committed
-            pass
+    except Exception:  # noqa: BLE001 — audit is advisory; the filing is durable
+        pass
 
-        return ComplaintOut(
-            reference_id=out["reference_id"],
-            status=out["status"],
-            depot=out.get("depot"),
-            sla_due_at=out.get("sla_due_at"),
-        )
+    return result

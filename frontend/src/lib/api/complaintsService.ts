@@ -103,6 +103,8 @@ function fromTrack(t: BackendTrack): ComplaintData {
     id: `h-${t.reference_id}-${i}`,
     status: mapStatus(h.to_status),
     title: `Status updated to ${h.to_status.replace(/_/g, ' ').toUpperCase()}`,
+    // Operator note from the depot (surfaces the human side of the lifecycle).
+    description: h.note ?? undefined,
     timestamp: h.created_at,
     actor: h.changed_by ?? undefined,
   }));
@@ -271,6 +273,10 @@ export const complaintsService = {
     });
   },
 
+  /** Staff lifecycle write (POST /api/v1/complaints/{ref}/status).
+   *  UI statuses map to the DB vocabulary; the server re-checks transitions
+   *  and returns 404 (unknown ref) / 422 (illegal move) with a readable
+   *  detail the caller can surface. Refreshes the tracked complaint after. */
   async updateStatus(
     refNumber: string,
     newStatus: ComplaintData['status'],
@@ -279,9 +285,35 @@ export const complaintsService = {
     if (!staffSession.token()) {
       throw new Error('Access Denied: Administrative authorization required to update grievance status.');
     }
-    void refNumber;
-    void newStatus;
-    void note;
-    throw new Error('Status updates are not available from the configured backend.');
+    // UI status -> DB status (DB has no 'rejected'; closing covers it).
+    const DB_STATUS: Record<string, string> = {
+      submitted: 'submitted',
+      needs_triage: 'needs_triage',
+      in_review: 'in_review',
+      in_progress: 'in_review',
+      escalated: 'escalated',
+      resolved: 'resolved',
+      closed: 'closed',
+      rejected: 'closed',
+    };
+    const target = DB_STATUS[newStatus];
+    if (!target) throw new Error(`Unsupported status: ${newStatus}`);
+    try {
+      await api(`/api/v1/complaints/${encodeURIComponent(refNumber.toUpperCase())}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: target, note: note ?? null }),
+      });
+    } catch (e) {
+      if (e instanceof Error && e.message === 'Backend 404') {
+        throw new Error('That reference ID does not exist.');
+      }
+      if (e instanceof Error && e.message === 'Backend 422') {
+        throw new Error('That status change is not allowed for this complaint. Refresh and check its current status.');
+      }
+      throw e;
+    }
+    const refreshed = await this.getById(refNumber);
+    return refreshed;
   },
 };

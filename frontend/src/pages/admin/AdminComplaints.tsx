@@ -21,6 +21,7 @@ export const AdminComplaints: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [selectedComplaint, setSelectedComplaint] = useState<ComplaintData | null>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
   const [newStatus, setNewStatus] = useState<ComplaintStatus>('in_progress');
   const [officerNote, setOfficerNote] = useState('');
 
@@ -55,6 +56,7 @@ export const AdminComplaints: React.FC = () => {
   const handleUpdateStatus = async () => {
     if (!selectedComplaint) return;
     setIsUpdatingStatus(true);
+    setStatusError(null);
     try {
       const updated = await complaintsService.updateStatus(
         selectedComplaint.referenceNumber,
@@ -66,6 +68,8 @@ export const AdminComplaints: React.FC = () => {
         await loadComplaints();
         setOfficerNote('');
       }
+    } catch (e) {
+      setStatusError(e instanceof Error ? e.message : 'Could not record the action. Try again.');
     } finally {
       setIsUpdatingStatus(false);
     }
@@ -296,6 +300,10 @@ export const AdminComplaints: React.FC = () => {
                   />
                 </div>
               </div>
+
+              {statusError && (
+                <p className="text-[12px] text-[var(--semantic-error)]">{statusError}</p>
+              )}
 
               <div className="flex justify-end gap-3 pt-2">
                 <Button

@@ -17,6 +17,8 @@
 //   POST /api/v1/extract/ticket                image -> structured ticket JSON (Groq vision)
 //   POST /api/v1/voice/status                  Sarvam STT configured?
 //   POST /api/v1/voice/transcribe              audio -> transcript (Sarvam)
+//   POST /api/v1/complaints/{ref}/status       staff status write (transition-checked)
+//   GET  /api/v1/complaints/{ref}/status       staff-only status history
 //   POST /api/v1/telegram/webhook              Telegram bot (ticket-first flow)
 //
 // API SLOTS (set as function secrets — everything works once keys exist):
@@ -123,6 +125,18 @@ function requireStaff(req: Request): Response | null {
     return json({ detail: 'invalid staff credentials' }, 401);
   }
   return null;
+}
+
+/** Staff shared secret OR an admin-role Clerk session (mirrors analytics). */
+async function requireStaffOrAdmin(req: Request): Promise<Response | null> {
+  const denied = requireStaff(req);
+  if (denied === null) return null;
+  const bearer = (req.headers.get('authorization') ?? '').replace(/^Bearer /, '').trim();
+  if (bearer && looksLikeJwt(bearer)) {
+    const v = await verifyUser(req);
+    if (v.ok && v.role === 'admin') return null;
+  }
+  return denied;
 }
 
 function client() {
@@ -256,7 +270,11 @@ function mapDbError(e: { code?: string; message?: string } | null): Response {
   if (e && (e.code === '22023' || e.code === 'P0001')) {
     return json({ detail: e.message ?? 'validation failed' }, 422);
   }
-  console.error('db error', e);
+  if (e && e.code === 'P0002') {
+    // no_data_found — e.g. app_set_status/app_status_history on an unknown ref
+    return json({ detail: e.message ?? 'not found' }, 404);
+  }
+  console.error(JSON.stringify({ event: 'db_error', request_id: ACTIVE_REQUEST_ID, code: e?.code, message: e?.message }));
   return json({ detail: 'storage failure' }, 500);
 }
 
@@ -1445,13 +1463,18 @@ async function handleUpload(req: Request): Promise<Response> {
 // ---------------------------------------------------------------------------
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') {
+    // Preflight MUST match the actual-response CORS policy (same origin pin,
+    // same allow-list incl. x-idempotency-key / x-request-id) — a mismatch
+    // makes browsers drop the request entirely.
     return new Response(null, {
       status: 204,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin':
+          Deno.env.get('SITE_URL') ?? Deno.env.get('FRONTEND_URL') ?? '*',
         'Access-Control-Allow-Headers':
-          'authorization, content-type, x-telegram-bot-api-secret-token',
+          'authorization, content-type, x-telegram-bot-api-secret-token, x-request-id, x-idempotency-key',
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Max-Age': '86400',
       },
     });
   }
@@ -1686,6 +1709,35 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const { data, error } = await sb.rpc('app_admin_analytics');
       if (error) return mapDbError(error);
       return json(data);
+    }
+
+    // -- staff status writes (admin console lifecycle actions) -------------
+    // Authorization: staff shared secret OR admin-role Clerk session.
+    // The DB re-checks transitions; errors map to 404 (unknown ref) / 422
+    // (illegal move, bad status, overlong note). Audited inside the RPC.
+    const statusMatch = path.match(/^\/api\/v1\/complaints\/([^/]+)\/status$/);
+    if (statusMatch && req.method === 'POST') {
+      const denied = await requireStaffOrAdmin(req);
+      if (denied) return denied;
+      const ref = decodeURIComponent(statusMatch[1]).trim().toUpperCase();
+      const body = await req.json().catch(() => ({}));
+      const { data, error } = await client().rpc('app_set_status', {
+        p_ref: ref,
+        p_new_status: body.status ?? '',
+        p_note: typeof body.note === 'string' ? body.note : null,
+        p_actor: 'admin-console',
+        p_request_id: reqId,
+      });
+      if (error) return mapDbError(error);
+      return json(data);
+    }
+    if (statusMatch && req.method === 'GET') {
+      const denied = await requireStaffOrAdmin(req);
+      if (denied) return denied;
+      const ref = decodeURIComponent(statusMatch[1]).trim().toUpperCase();
+      const { data, error } = await client().rpc('app_status_history', { p_ref: ref });
+      if (error) return mapDbError(error);
+      return json({ items: data });
     }
 
     // -- telegram --------------------------------------------------------

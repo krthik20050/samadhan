@@ -60,6 +60,7 @@ export interface BackendHistoryItem {
   from_status: string | null;
   to_status: string;
   changed_by: string | null;
+  note?: string | null;
   created_at: string;
 }
 

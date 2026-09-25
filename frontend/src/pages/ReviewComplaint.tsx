@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useComplaintDraft } from '../hooks/useComplaintDraft';
 import { newIdempotencyKey } from '../context/ComplaintDraftContext';
@@ -28,10 +28,13 @@ export const ReviewComplaint: React.FC = () => {
 
   // One stable submission key per draft: double-clicks and network retries
   // reuse it, so the backend returns the original complaint (AUDIT.md H-7).
-  const idempotencyKeyRef = React.useRef<string>(draft.idempotencyKey ?? newIdempotencyKey());
-  if (!draft.idempotencyKey) {
-    updateDraft({ idempotencyKey: idempotencyKeyRef.current });
-  }
+  // Generated once per mount (useState initializer, not render-phase writes);
+  // synced into the draft after mount so a refresh-failed retry can recover it.
+  const [idempotencyKey] = useState<string>(() => draft.idempotencyKey ?? newIdempotencyKey());
+  useEffect(() => {
+    if (!draft.idempotencyKey) updateDraft({ idempotencyKey });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [phone, setPhone] = useState(draft.contactPhone || '');
   const [channel, setChannel] = useState<'whatsapp' | 'sms' | 'email'>(
@@ -63,7 +66,7 @@ export const ReviewComplaint: React.FC = () => {
         evidence: (draft.uploadedEvidence ?? []).map((e) => ({
           storage_path: e.storage_path, mime_type: e.mime_type, size_bytes: e.size_bytes,
         })),
-        idempotencyKey: idempotencyKeyRef.current,
+        idempotencyKey,
       });
 
       updateDraft({
