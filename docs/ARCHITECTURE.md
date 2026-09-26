@@ -47,7 +47,7 @@ around the core, never inside it.
    Unknown route => `depot_id = NULL`, status `needs_triage` (never reject).
 4. Service loads `sla_rules` for category (+priority override) -> sets `sla_due_at`.
 5. Row inserted in `complaints` + row in `status_history`.
-6. Reference ID (e.g. `KSRTC-2026-XXXXXX`) returned.
+6. Reference ID (e.g. `SAM-2026-000123`; legacy `KSRTC-…` IDs still resolve) returned.
 7. Tracking and dashboard read the same rows; dashboard queries use an
    anonymised view (no phone/identity/exact location).
 

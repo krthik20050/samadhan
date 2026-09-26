@@ -54,7 +54,7 @@ async def receive(
         return {"status": "ok", "reply": HELP, "send": _send(chat_id, HELP)}
     if low.startswith("/track"):
         ref = text[6:].strip()
-        reply = _track_reply(ref) if ref else "Send: /track KSRTC-XXXXXX"
+        reply = _track_reply(ref) if ref else "Send: /track SAM-2026-000123"
         return {"status": "ok", "reply": reply, "send": _send(chat_id, reply)}
     complaint = parse_complaint_text(text)
     if complaint is None:

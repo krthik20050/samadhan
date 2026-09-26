@@ -1,3 +1,5 @@
+import pytest
+
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -47,6 +49,7 @@ def _wa_payload(sender: str, body: str):
         {"from": sender, "type": "text", "text": {"body": body}}]}}]}]}
 
 
+@pytest.mark.needs_db
 def test_webhook_files_complaint():
     r = c.post("/api/v1/whatsapp/webhook", json=_wa_payload(
         "919999999999", "overcrowding | Adoor - Ekm | Bus was severely overcrowded today"))
@@ -54,12 +57,13 @@ def test_webhook_files_complaint():
         assert r.status_code == 200, r.text
         body = r.json()
         assert body["status"] == "ok"
-        assert body["reference_id"].startswith("KSRTC-")
+        assert body["reference_id"].startswith("SAM-")
         assert body["reference_id"] in body["reply"]
     finally:
         cleanup(r.json()["reference_id"])
 
 
+@pytest.mark.needs_db
 def test_webhook_unknown_route_needs_triage():
     r = c.post("/api/v1/whatsapp/webhook", json=_wa_payload(
         "919999999999", "cleanliness | No Such Route XYZ | This bus was very dirty today indeed"))

@@ -24,7 +24,7 @@ not a controlled study; confidence reflects evidence strength.
 ## Priority gaps worth a follow-up
 
 1. Success page: add a prominent "copy reference" affordance and a WhatsApp/TG
-   share of `KSRTC-…` (addresses #3; cheap, high value).
+   share of `SAM-…` (addresses #3; cheap, high value).
 2. Review step: show SLA due date ("depot must respond by …") — sets the
    expectation the status timeline then has to meet (#4).
 3. Post-resolution feedback prompt on /track when status = resolved (#4).

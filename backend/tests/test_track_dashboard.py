@@ -1,4 +1,6 @@
 """Track + dashboard tests (live DB, self-cleaning)."""
+import pytest
+
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -17,6 +19,7 @@ def _make():
     return r.json()["reference_id"]
 
 
+@pytest.mark.needs_db
 def test_track_found_and_allowlisted():
     ref = _make()
     try:
@@ -30,10 +33,12 @@ def test_track_found_and_allowlisted():
         cleanup(ref)
 
 
+@pytest.mark.needs_db
 def test_track_404():
     assert client.get("/api/v1/complaints/KSRTC-2026-NOPE01").status_code == 404
 
 
+@pytest.mark.needs_db
 def test_dashboard():
     ref = _make()
     try:

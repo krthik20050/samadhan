@@ -26,7 +26,7 @@ category.
 |---|---|
 | `/complain` | Start the guided flow |
 | `/my` | Your recent complaints from this chat |
-| `/track KSRTC-…` | Status of any complaint |
+| `/track SAM-…` | Status of any complaint (legacy KSRTC-… IDs also resolve) |
 | `/cancel` | Abort the current flow |
 | `/help` | Overview |
 

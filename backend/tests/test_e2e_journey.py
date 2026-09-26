@@ -9,11 +9,14 @@ import re
 
 from fastapi.testclient import TestClient
 
+import pytest
+
 from app.core.db import get_conn
 from app.main import app
 
 c = TestClient(app)
-REF = re.compile(r"KSRTC-\d{4}-[A-Z0-9]{6}")
+# Dual format: SAM- canonical (migration 013), KSRTC- until it is applied live.
+REF = re.compile(r"(SAM-\d{4}-\d{6}|KSRTC-\d{4}-[A-Z0-9]{6})")
 
 
 def _cleanup(ref: str):
@@ -28,6 +31,7 @@ def _cleanup(ref: str):
         cur.execute("DELETE FROM complaints WHERE reference_id = %s", (ref,))
 
 
+@pytest.mark.needs_db
 def test_full_website_journey_submit_duplicate_track():
     key = "pytest-e2e-journey-001"
     headers = {"X-Idempotency-Key": key}
@@ -74,6 +78,34 @@ def test_full_website_journey_submit_duplicate_track():
     finally:
         if ref:
             _cleanup(ref)
+
+
+@pytest.mark.needs_db
+def test_legacy_ksrtc_reference_still_resolves():
+    # Back-compat contract (migration 013): a stored KSRTC-YYYY-XXXXXX ID must
+    # resolve on the same public tracking path as a new SAM- ID. Creates a
+    # legacy-format row directly (the generator no longer mints them), tracks
+    # it through the API, verifies it round-trips, then cleans up.
+    legacy_ref = "KSRTC-2026-TST001"
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO complaints (reference_id, category, description, route_text, status)"
+            " VALUES (%s, 'cleanliness', 'Legacy-ID back-compat probe row.', 'Adoor - Ernakulam', 'submitted')",
+            (legacy_ref,),
+        )
+        cur.execute(
+            "INSERT INTO status_history (complaint_id, from_status, to_status)"
+            " SELECT id, NULL, 'submitted' FROM complaints WHERE reference_id = %s",
+            (legacy_ref,),
+        )
+    try:
+        rt = c.get(f"/api/v1/complaints/{legacy_ref}")
+        assert rt.status_code == 200, rt.text
+        body = rt.json()
+        assert body["reference_id"] == legacy_ref
+        assert body["status"] == "submitted"
+    finally:
+        _cleanup(legacy_ref)
 
 
 def test_webhook_rejects_oversized_upload_limit_documented():

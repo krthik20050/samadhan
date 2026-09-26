@@ -45,6 +45,7 @@ breaches; escalations surface in the admin console banner and analytics.
 
 Issued once by `app_reference_id()` inside the filing transaction, returned
 to the channel, rendered by web success/track pages, bot confirmations and
-`/my`, dashboard lists, and audit rows. Format `KSRTC-YYYY-XXXXXX`;
-unguessable (36^6), unique + regex-checked in the DB; the passenger-facing
-capability for public tracking.
+`/my`, dashboard lists, and audit rows. Format `SAM-YYYY-NNNNNN` (canonical,
+migration 013; concurrency-safe per-year counter, zero-padded 6 digits);
+unique + regex-checked in the DB; the passenger-facing capability for public
+tracking. Legacy `KSRTC-YYYY-XXXXXX` IDs remain valid and resolvable.

@@ -22,10 +22,11 @@ the only callers. RLS is enabled on state tables and denies by default.
 
 ## Reference IDs
 
-`app_reference_id()` — `KSRTC-YYYY-XXXXXX`, crypto-random from A–Z0–9 (36^6 ≈
-2.2B/year). DB-enforced: `UNIQUE(reference_id)` + `chk_complaint_ref` regex.
-The filing RPC retries up to 5× on collision; FastAPI's Python generator exists
-only for tests and mirrors the format.
+`app_reference_id()` — `SAM-YYYY-NNNNNN` (canonical, migration 013): per-year
+counter table read under a row lock, zero-padded 6 digits, sequential and
+collision-free by construction. DB-enforced: `UNIQUE(reference_id)` +
+`chk_complaint_ref` regex accepting both this and legacy `KSRTC-YYYY-XXXXXX`.
+FastAPI's Python generator exists only for tests and mirrors the format.
 
 ## Ticket lifecycle (enforced in DB)
 

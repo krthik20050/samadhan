@@ -125,7 +125,7 @@ It provides an end-to-end grievance workflow:
 | ⏱️ SLA Management        | Calculate response/resolution deadlines                                    |
 | 🚨 Escalations           | Detect overdue complaints and escalate them                                |
 | 📎 Evidence              | Store ticket photos, images and videos securely                            |
-| 🔖 Reference IDs         | Every complaint receives a trackable reference number                      |
+| 🔖 Reference IDs         | Every complaint receives a unique trackable reference number (`SAM-YYYY-NNNNNN`; legacy `KSRTC-…` IDs still resolve) |
 | 📊 Dashboard             | Monitor complaint volume, categories, statuses and SLA breaches            |
 | 👤 Account Linking       | Connect Telegram users to their phone number                               |
 | 🚌 Saved Trips           | Remember frequently used routes and buses                                  |
@@ -421,12 +421,12 @@ The bot then returns:
 ```text
 ✅ Complaint filed and live on the website.
 
-🔖 Reference: KSRTC-2026-XXXXXX
+🔖 Reference: SAM-2026-000123
 🏢 Depot: ADOOR
 📎 Proof stored: 2
 ⏱️ SLA due: ...
 
-Track: /track KSRTC-2026-XXXXXX
+Track: /track SAM-2026-000123
 Your complaints: /my
 ```
 
@@ -1359,7 +1359,7 @@ Ticket information
 Show the generated:
 
 ```text
-KSRTC-2026-XXXXXX
+SAM-2026-000123
 ```
 
 ### 06 — Open the web dashboard
@@ -1371,7 +1371,7 @@ The same complaint appears in the dashboard.
 Use:
 
 ```text
-/track KSRTC-2026-XXXXXX
+/track SAM-2026-000123
 ```
 
 or the web tracking page.

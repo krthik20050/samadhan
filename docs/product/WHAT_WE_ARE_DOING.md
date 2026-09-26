@@ -17,9 +17,9 @@ no longer re-implements validation; it delegates.
 
 ## 2. Reference IDs stay server-issued and provably unique
 
-**What:** `app_reference_id()` (crypto-random `KSRTC-YYYY-XXXXXX`), DB-enforced
-unique + regex constraints, collision retry inside the filing transaction.
-**Where:** migration 005/011; `backend/app/services/reference.py` (tests only).
+**What:** `app_reference_id()` (`SAM-YYYY-NNNNNN`, canonical — migration 013
+per-year counter), DB-enforced unique + dual-format regex constraints.
+**Where:** migrations 005/011/013; `backend/app/services/reference.py` (tests only).
 **Verified:** `test_reference_id.py` — 1,000 generations, all unique, format-checked.
 
 ## 3. Idempotent submission (no duplicate complaints)

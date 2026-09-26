@@ -12,8 +12,7 @@ Home
                      Step 2: Where/when? (route autocomplete from the KSRTC
                               dataset, bus number, travel date, proof upload)
  → /file-complaint/review   Step 3: full summary + optional phone + channel
-                              (Edit links jump back; Submit is idempotent)
- → /file-complaint/success    Reference ID (KSRTC-YYYY-XXXXXX) + depot + SLA
+                              (Edit links jump back; Submit is idempotent)  → /file-complaint/success    Reference ID (SAM-YYYY-NNNNNN; legacy KSRTC-YYYY-XXXXXX still resolves) + depot + SLA
  → /track                     Reference → status timeline, depot, SLA state
 ```
 

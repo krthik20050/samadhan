@@ -6,8 +6,8 @@ Core demo — must work with all AI services DOWN:
 2. Click "File complaint" (`/complain`).
 3. Enter bus number, route (pick a real one, e.g. Adoor - Ernakulam),
    category, location, description.
-4. Submit -> show reference ID (e.g. `KSRTC-2026-XXXXXX`).
-5. Open tracking (`/track/KSRTC-2026-XXXXXX`) -> status `submitted`,
+4. Submit -> show reference ID (e.g. `SAM-2026-000123`).
+5. Open tracking (`/track/SAM-2026-000123`) -> status `submitted`,
    responsible depot shown (e.g. ADOOR).
 6. Open dashboard (`/dashboard`) -> complaint counted, anonymised
    (no phone/identity shown).

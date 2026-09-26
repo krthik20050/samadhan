@@ -39,7 +39,7 @@ SELECT detail->>'channel' AS channel, count(*) FROM audit_log
 WHERE action='complaint_filed' AND created_at > now() - interval '24 hours'
 GROUP BY 1;
 -- everything that happened to one complaint
-SELECT * FROM audit_log WHERE entity_type='complaint' AND entity_id='KSRTC-2026-XXXXXX'
+SELECT * FROM audit_log WHERE entity_type='complaint' AND entity_id='SAM-2026-000123'
 ORDER BY created_at;
 ```
 

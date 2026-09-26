@@ -17,7 +17,7 @@ Validation: `category` in enum; `description` >= 10 chars; either
 `depot_id=null`, status `needs_triage`.
 ```json
 // 201 response
-{"reference_id":"KSRTC-2026-A1B2C3","status":"submitted","depot":"ADOOR",
+{"reference_id":"SAM-2026-000123","status":"submitted","depot":"ADOOR",
  "sla_due_at":"2026-09-25T12:00:00Z"}
 ```
 Errors: `422` validation, `500` DB failure.

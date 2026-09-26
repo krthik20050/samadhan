@@ -24,4 +24,4 @@ def test_complaint_rejects_blank_route_text():
 def test_reference_id_shape():
     with pytest.raises(ValueError):
         ComplaintCreate(category="other", route_text="   ", description="long enough text here")
-    assert re.fullmatch(r"KSRTC-\d{4}-[A-Z0-9]{6}", generate_reference_id())
+    assert re.fullmatch(r"SAM-\d{4}-\d{6}", generate_reference_id())

@@ -5,6 +5,8 @@ persists + lands in track history + audit_log, same-state idempotency.
 """
 import re
 
+import pytest
+
 from fastapi.testclient import TestClient
 
 from app.core.config import get_settings
@@ -14,7 +16,7 @@ from app.main import app
 c = TestClient(app)
 TOKEN = get_settings().ADMIN_API_TOKEN
 STAFF = {"Authorization": f"Bearer {TOKEN}"}
-REF = re.compile(r"KSRTC-\d{4}-[A-Z0-9]{6}")
+REF = re.compile(r"(SAM-\d{4}-\d{6}|KSRTC-\d{4}-[A-Z0-9]{6})")
 
 
 def _cleanup(ref: str):
@@ -40,11 +42,13 @@ def _make_complaint() -> str:
     return r.json()["reference_id"]
 
 
+@pytest.mark.needs_db
 def test_status_write_requires_staff_auth():
     r = c.post("/api/v1/complaints/KSRTC-2026-AAAAAA/status", json={"status": "in_review"})
     assert r.status_code in (401, 503), r.text  # fail closed either way
 
 
+@pytest.mark.needs_db
 def test_status_write_unknown_ref_is_404():
     r = c.post(
         "/api/v1/complaints/KSRTC-2026-ZZZZZZ/status",
@@ -55,6 +59,7 @@ def test_status_write_unknown_ref_is_404():
     assert "unknown reference" in r.json()["detail"].lower()
 
 
+@pytest.mark.needs_db
 def test_status_happy_path_illegal_and_idempotent():
     ref = _make_complaint()
     try:
@@ -101,11 +106,13 @@ def test_status_happy_path_illegal_and_idempotent():
         _cleanup(ref)
 
 
+@pytest.mark.needs_db
 def test_status_history_requires_staff_auth():
     r = c.get("/api/v1/complaints/KSRTC-2026-AAAAAA/status")
     assert r.status_code in (401, 503)
 
 
+@pytest.mark.needs_db
 def test_status_history_unknown_ref_is_404():
     r = c.get("/api/v1/complaints/KSRTC-2026-ZZZZZZ/status", headers=STAFF)
     assert r.status_code == 404

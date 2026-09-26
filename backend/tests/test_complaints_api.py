@@ -3,13 +3,17 @@
 import re
 from uuid import uuid4
 
+import pytest
+
 from fastapi.testclient import TestClient
 
 from app.core.db import get_conn
 from app.main import app
 
 client = TestClient(app)
-REF = re.compile(r"KSRTC-\d{4}-[A-Z0-9]{6}")
+# Migration 013 makes SAM-YYYY-NNNNNN canonical; the live DB keeps generating
+# KSRTC-YYYY-XXXXXX until it is applied, so both formats are valid here.
+REF = re.compile(r"(SAM-\d{4}-\d{6}|KSRTC-\d{4}-[A-Z0-9]{6})")
 
 BASE = {
     "bus_number": "KL-15-1234",
@@ -29,6 +33,7 @@ def cleanup(ref: str):
         cur.execute("DELETE FROM complaints WHERE reference_id = %s", (ref,))
 
 
+@pytest.mark.needs_db
 def test_create_known_route():
     r = client.post("/api/v1/complaints", json={**BASE, "route_text": "Adoor - Ernakulam"})
     try:
@@ -42,6 +47,7 @@ def test_create_known_route():
         cleanup(r.json()["reference_id"])
 
 
+@pytest.mark.needs_db
 def test_create_by_route_id():
     with get_conn() as conn, conn.cursor() as cur:
         cur.execute("SELECT id FROM routes WHERE name='Adoor - Ernakulam' LIMIT 1")
@@ -54,6 +60,7 @@ def test_create_by_route_id():
         cleanup(r.json()["reference_id"])
 
 
+@pytest.mark.needs_db
 def test_create_unknown_route_needs_triage():
     r = client.post("/api/v1/complaints", json={**BASE, "route_text": "No Such Route XYZ"})
     try:
@@ -65,6 +72,7 @@ def test_create_unknown_route_needs_triage():
         cleanup(r.json()["reference_id"])
 
 
+@pytest.mark.needs_db
 def test_validation():
     assert client.post("/api/v1/complaints",
                        json={**BASE, "route_text": "Adoor - Ernakulam",

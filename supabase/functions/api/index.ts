@@ -37,7 +37,7 @@ import { createRemoteJWKSet, jwtVerify } from 'https://esm.sh/jose@5';
 const HELP =
   '🚌 SAMADHAN — file a KSRTC complaint in under a minute.\n\n' +
   'Send /complain: upload your ticket photo and I read the bus number, route ' +
-  'and date from it automatically. Track with /track KSRTC-XXXXXX, your ' +
+  'and date from it automatically. Track with /track SAM-2026-000123, your ' +
   'complaints with /my. /cancel stops the current flow.';
 
 const CATEGORIES: [string, string][] = [
@@ -314,7 +314,7 @@ async function tgConfigureBot(): Promise<void> {
       { command: 'complain', description: 'File a complaint (upload your ticket)' },
       { command: 'link', description: 'Link your account to save trips & get callbacks' },
       { command: 'my', description: 'My complaints' },
-      { command: 'track', description: 'Track a complaint (e.g. /track KSRTC-2026-ABC123)' },
+      { command: 'track', description: 'Track a complaint (e.g. /track SAM-2026-000123)' },
       { command: 'help', description: 'How to use SAMADHAN' },
       { command: 'cancel', description: 'Cancel the current flow' },
     ],
@@ -1318,7 +1318,7 @@ async function handleTelegram(req: Request): Promise<Response> {
     }
     if (name === 'my') { await sendMyComplaints(sb, chatId); return json({ status: 'ok' }); }
     if (name === 'track') {
-      if (!arg) { await tgSend(chatId, 'Send: /track KSRTC-XXXXXX'); return json({ status: 'ok' }); }
+      if (!arg) { await tgSend(chatId, 'Send: /track SAM-2026-000123'); return json({ status: 'ok' }); }
       const { data, error } = await sb.rpc('app_track_complaint', { p_ref: arg });
       const reply = error
         ? 'Tracking failed — try the web /track page.'

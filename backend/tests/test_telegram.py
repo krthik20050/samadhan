@@ -1,3 +1,5 @@
+import pytest
+
 from fastapi.testclient import TestClient
 
 from app.core.config import get_settings
@@ -47,13 +49,14 @@ def test_short_text_gets_help():
     assert r.json()["complaint"] is None
 
 
+@pytest.mark.needs_db
 def test_webhook_files_complaint():
     r = _post({"message": {"chat": {"id": 999},
         "text": "overcrowding | Adoor - Ekm | Bus was severely overcrowded today"}})
     try:
         assert r.status_code == 200, r.text
         body = r.json()
-        assert body["reference_id"].startswith("KSRTC-")
+        assert body["reference_id"].startswith("SAM-")
         assert body["reference_id"] in body["reply"]
     finally:
         cleanup(r.json()["reference_id"])

@@ -110,7 +110,7 @@ testable with the expired token too — `--full` covers all of it.
 1. From your own phone, WhatsApp your test number: `hi` → tap through the
    guided flow (or send `overcrowding | Adoor - Ernakulam | Bus was packed and
    skipped my stop` directly)
-2. Bot replies `Filed KSRTC-2026-XXXXXX (submitted, depot: ADOOR). Track it on
+2. Bot replies `Filed SAM-2026-000123 (submitted, depot: ADOOR). Track it on
    the website /track page with your reference ID.`
 3. Open the web `/track` page with that reference ID — same pipeline, same DB.
 

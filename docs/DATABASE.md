@@ -36,7 +36,7 @@ Purpose: which depot owns which route (many-to-many with status).
 ### complaints
 Purpose: one grievance. Operational table (contains contact info).
 - `id` uuid PK
-- `reference_id` text NOT NULL UNIQUE (e.g. `KSRTC-2026-A1B2C3`)
+- `reference_id` text NOT NULL UNIQUE (new: `SAM-2026-000123`; legacy `KSRTC-2026-A1B2C3` stays valid)
 - `bus_number` text NULL, `route_id` uuid FK routes NULL (free-text
   `route_text` text NULL kept when route unknown)
 - `route_text` text NULL

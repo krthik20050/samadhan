@@ -22,7 +22,8 @@ Hosting                  → Vercel (frontend), Supabase (API + DB + cron SLA sw
 
 Domain: **public-transport grievance management for KSRTC** — passengers file
 complaints (9 categories) via web, Telegram, WhatsApp or voice; complaints route to
-depots through a 5,881-alias dataset, get reference IDs (`KSRTC-YYYY-XXXXXX`), SLA
+depots through a 5,881-alias dataset, get reference IDs (`SAM-YYYY-NNNNNN`
+canonical since migration 013; `KSRTC-YYYY-XXXXXX` legacy rows still resolve), SLA
 deadlines, status lifecycle (`submitted → in_review/needs_triage/escalated →
 resolved → closed`), and appear on an anonymised public dashboard + staff admin.
 
