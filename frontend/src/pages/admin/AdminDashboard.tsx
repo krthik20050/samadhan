@@ -128,7 +128,7 @@ export const AdminDashboard: React.FC = () => {
             </span>
           </div>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
-            Real-time grievance intake across web and Telegram — refreshed every {POLL_MS / 1000}s.
+            Real-time grievance intake, refreshed every {POLL_MS / 1000}s.
           </p>
         </div>
 
@@ -375,7 +375,7 @@ export const AdminDashboard: React.FC = () => {
           ))}
           {stats.recent.length === 0 && (
             <p className="py-6 text-center text-sm text-[var(--text-secondary)]">
-              No grievances yet — file one from the website or the Telegram bot.
+              No grievances yet — file one from the website.
             </p>
           )}
         </div>

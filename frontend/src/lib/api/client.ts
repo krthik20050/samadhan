@@ -32,13 +32,23 @@ export class BackendUnavailable extends Error {}
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 15000);
+  const timeoutMs = path === '/api/v1/extract/ticket' ? 60000 : 15000;
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   const headers = new Headers(init?.headers);
   const token = await bearerToken();
   if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
   try {
     const res = await fetch(`${BASE}${path}`, { ...init, headers, signal: ctrl.signal });
-    if (!res.ok) throw new Error(`Backend ${res.status}`);
+    if (!res.ok) {
+      let detail = '';
+      try {
+        const body = await res.json() as { detail?: unknown };
+        if (typeof body.detail === 'string') detail = `: ${body.detail}`;
+      } catch {
+        // Keep the status when the backend does not return JSON.
+      }
+      throw new Error(`Backend ${res.status}${detail}`);
+    }
     return (await res.json()) as T;
   } catch (e) {
     if (e instanceof Error && e.message.startsWith('Backend ')) throw e;

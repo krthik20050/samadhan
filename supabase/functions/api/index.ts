@@ -415,7 +415,18 @@ async function extractTicketWithGroq(
         ],
       }),
     });
-    if (!r.ok) return { ok: false, reason: `groq ${r.status}` };
+    if (!r.ok) {
+      let reason = `groq ${r.status}`;
+      try {
+        const failure = await r.json() as { error?: { message?: unknown } };
+        if (typeof failure.error?.message === 'string' && failure.error.message.trim()) {
+          reason += `: ${failure.error.message.trim()}`;
+        }
+      } catch {
+        // Preserve the HTTP status when Groq does not return JSON.
+      }
+      return { ok: false, reason };
+    }
     const body = await r.json();
     let raw = String(body?.choices?.[0]?.message?.content ?? '{}').trim();
     // qwen sometimes wraps JSON in markdown fences — strip them defensively.
