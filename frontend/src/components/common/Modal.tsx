@@ -1,3 +1,4 @@
+import { useText } from '../../hooks/useText';
 import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 
@@ -16,6 +17,7 @@ export const Modal: React.FC<ModalProps> = ({
   children,
   maxWidth = 'md',
 }) => {
+  const tx = useText();
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -51,12 +53,12 @@ export const Modal: React.FC<ModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#E8E4DA]">
-          <h3 className="text-xl font-bold text-[#17211F]">{title}</h3>
+          <h3 className="text-xl font-bold text-[#17211F]">{tx(title)}</h3>
           <button
             type="button"
             onClick={onClose}
             className="p-2 text-[#66716D] hover:text-[#17211F] hover:bg-[#F6F3EC] active:scale-[0.98] rounded-xl transition-all cursor-pointer"
-            aria-label="Close dialog"
+            aria-label={tx("Close dialog")}
           >
             <X className="w-5 h-5" />
           </button>

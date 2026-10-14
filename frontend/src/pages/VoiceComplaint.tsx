@@ -1,3 +1,4 @@
+import { useText } from '../hooks/useText';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useComplaintDraft } from '../hooks/useComplaintDraft';
@@ -9,6 +10,7 @@ import { ArrowLeft, Volume2, ShieldCheck } from 'lucide-react';
 import { Button } from '../components/common/Button';
 
 export const VoiceComplaint: React.FC = () => {
+  const tx = useText();
   const navigate = useNavigate();
   const { t } = useLanguage();
   const { draft, updateDraft } = useComplaintDraft();
@@ -40,11 +42,11 @@ export const VoiceComplaint: React.FC = () => {
           className="inline-flex items-center gap-1.5 text-[14px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>{step === 'review_extracted' ? 'Record Voice Again' : 'Back to Options'}</span>
+          <span>{step === 'review_extracted' ? tx("Record Voice Again") : tx("Back to Options")}</span>
         </button>
 
         <div className="flex items-center gap-2 text-[12px] font-mono font-bold uppercase tracking-wider text-[var(--brand)]">
-          <span>{step === 'recording' ? 'STEP 01: VOICE INTAKE' : 'STEP 02: VERIFICATION'}</span>
+          <span>{step === 'recording' ? tx("STEP 01: VOICE INTAKE") : tx("STEP 02: VERIFICATION")}</span>
         </div>
       </div>
 
@@ -70,15 +72,14 @@ export const VoiceComplaint: React.FC = () => {
           <div className="mt-8 p-4 rounded-[10px] bg-[var(--surface-primary)] border border-[var(--border-standard)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[13px] text-[var(--text-secondary)]">
             <div className="flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-[var(--brand)] shrink-0" />
-              <span>Spoken audio is converted to text solely to register your grievance.</span>
+              <span>{tx("Spoken audio is converted to text solely to register your grievance.")}</span>
             </div>
             <button
               type="button"
               onClick={() => navigate('/file-complaint')}
               className="text-[var(--brand)] font-medium hover:underline shrink-0 text-left sm:text-right"
             >
-              Type instead
-            </button>
+              {tx("Type instead")}</button>
           </div>
         </div>
       ) : (
@@ -86,14 +87,12 @@ export const VoiceComplaint: React.FC = () => {
           <div className="text-left space-y-1.5">
             <div className="inline-flex items-center gap-2 text-[12px] font-mono uppercase tracking-wider text-[var(--semantic-success)]">
               <span className="w-1.5 h-1.5 rounded-full bg-[var(--semantic-success)]" />
-              <span>Voice Converted</span>
+              <span>{tx("Voice Converted")}</span>
             </div>
             <h2 className="text-[28px] sm:text-[32px] font-extrabold text-[var(--text-primary)] tracking-tight font-['Plus_Jakarta_Sans']">
-              Review What We Understood
-            </h2>
+              {tx("Review What We Understood")}</h2>
             <p className="text-[15px] text-[var(--text-secondary)]">
-              Inspect the extracted details below. You can edit any field before submitting.
-            </p>
+              {tx("Inspect the extracted details below. You can edit any field before submitting.")}</p>
           </div>
 
           {/* Extracted Details Card with Inline Edit & Confirm Action */}
@@ -110,8 +109,7 @@ export const VoiceComplaint: React.FC = () => {
               onClick={() => setStep('recording')}
               icon={<Volume2 className="w-4 h-4" />}
             >
-              Record voice again
-            </Button>
+              {tx("Record voice again")}</Button>
           </div>
         </div>
       )}

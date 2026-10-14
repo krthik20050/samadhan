@@ -40,6 +40,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const clerkUser = clerkEnabled ? useClerkUser() : null;
 
   const [staff, setStaff] = useState(staffSession.get);
+  const [staffChecking, setStaffChecking] = useState(Boolean(staff));
+  useEffect(() => {
+    const saved = staffSession.get();
+    if (!saved) return;
+    let active = true;
+    fetch(`${API_BASE}/api/v1/auth/login`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({password:saved.token}), signal:AbortSignal.timeout(15000),
+    }).then(res => {
+      if (active && !res.ok) { staffSession.clear(); setStaff(null); }
+    }).catch(() => { if (active) { staffSession.clear(); setStaff(null); } })
+      .finally(() => { if (active) setStaffChecking(false); });
+    return () => { active = false; };
+  }, []);
 
   // Feed the Clerk session token to the API client (staff token is the
   // client's own fallback when no Clerk session exists).
@@ -123,10 +137,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const value: AuthContextType = {
     user,
-    isAuthenticated: Boolean(user),
+    isAuthenticated: Boolean(user) && !staffChecking,
     isAdmin: user?.role === 'admin',
     isPassenger: user?.role === 'passenger',
-    isLoading: clerkEnabled ? !clerk?.isLoaded : false,
+    isLoading: staffChecking || (clerkEnabled ? !clerk?.isLoaded : false),
     login,
     logout,
   };

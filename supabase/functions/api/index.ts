@@ -368,6 +368,8 @@ type TicketExtract = {
   trip_code: string | null;
   depot_phone: string | null;
   landmark: string | null;
+  via?: string | null;
+  seat_number?: string | null;
   has_qr: boolean | null;
 };
 
@@ -392,7 +394,8 @@ async function extractTicketWithGroq(
     'origin, destination, travel_date (normalize to YYYY-MM-DD), travel_time (HH:MM, null if absent), ' +
     'ticket_no, pnr (PNR/booking reference, null if absent), depot, service_type ' +
     '(SUPER FAST / EXPRESS / FAST PASSENGER / etc, null if absent), trip_code (service/trip code, null if absent), ' +
-    'depot_phone (printed depot contact number, null if absent), landmark (printed boarding landmark, null if absent), ' +
+    'depot_phone (printed depot contact number, null if absent), landmark (printed boarding stop or landmark, null if absent), ' +
+    'via (printed intermediate stops or corridor, null if absent), seat_number (printed seat number, null if absent), ' +
     'has_qr (true if a QR code is printed, else false). ' +
     'Take every value from the image verbatim; use null only when genuinely absent. JSON only, no commentary.';
   try {
@@ -402,7 +405,7 @@ async function extractTicketWithGroq(
       body: JSON.stringify({
         model: groqModel(),
         temperature: 0,
-        max_tokens: 300,
+        max_tokens: 600,
         response_format: { type: 'json_object' },
         messages: [
           {
@@ -448,6 +451,8 @@ async function extractTicketWithGroq(
         trip_code: s(parsed.trip_code),
         depot_phone: s(parsed.depot_phone),
         landmark: s(parsed.landmark),
+        via: s(parsed.via),
+        seat_number: s(parsed.seat_number),
         has_qr: typeof parsed.has_qr === 'boolean' ? parsed.has_qr : null,
       },
     };
@@ -855,6 +860,8 @@ function ticketSummary(t: TicketExtract): string {
     t.depot ? `• Depot: ${t.depot}` : null,
     t.depot_phone ? `• Depot phone: ${t.depot_phone}` : null,
     t.landmark ? `• Landmark: ${t.landmark}` : null,
+    t.via ? `• Via: ${t.via}` : null,
+    t.seat_number ? `• Seat: ${t.seat_number}` : null,
     t.has_qr ? '• QR code: present' : null,
   ].filter(Boolean);
   return lines.length ? lines.join('\n') : '(nothing readable)';

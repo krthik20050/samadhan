@@ -1,3 +1,4 @@
+import { useText } from '../../hooks/useText';
 import React, { useState, useEffect, useRef } from 'react';
 import { Mic, Square, X, RotateCcw, AlertCircle, Sparkles, Globe, CheckCircle2 } from 'lucide-react';
 import { Button } from '../common/Button';
@@ -66,6 +67,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   onTranscriptionComplete,
   onCancel,
 }) => {
+  const tx = useText();
   const { language } = useLanguage();
   const [selectedLang, setSelectedLang] = useState<string>(
     language === 'ml' ? 'ml-IN' : 'en-IN',
@@ -162,6 +164,8 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       };
 
       recorder.onerror = () => {
+        if (timerRef.current) clearInterval(timerRef.current);
+        timerRef.current = null;
         setErrorMessage('Recording failed. Try again or use the sample complaint.');
         setIsRecording(false);
         stopStream();
@@ -279,26 +283,24 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       {errorMessage && (
         <div className="p-4 rounded-[10px] bg-[var(--surface-primary)] border border-[var(--semantic-danger)]/30 text-[var(--text-secondary)] text-[13px] flex items-start gap-2.5 animate-fadeIn">
           <AlertCircle className="w-4 h-4 text-[var(--semantic-danger)] shrink-0 mt-0.5" />
-          <p className="leading-relaxed">{errorMessage}</p>
+          <p className="leading-relaxed">{tx(errorMessage)}</p>
         </div>
       )}
 
       {/* Sarvam STT Status & Language Selector Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-[12px] bg-[var(--surface-primary)] border border-[var(--border-standard)]">
         <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span className={`w-2.5 h-2.5 rounded-full ${sttAvailable ? 'bg-emerald-500' : 'bg-amber-500'}`} />
           <span className="text-[12px] font-mono font-medium text-[var(--text-primary)]">
-            Sarvam AI Saaras v3
-          </span>
+            {tx("Sarvam AI Saaras v3")}</span>
           <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 font-mono">
-            STT Active
-          </span>
+            {tx(sttAvailable === null ? 'Loading voice service…' : sttAvailable ? 'STT Active' : 'Voice service unavailable')}</span>
         </div>
 
         {/* Spoken Language Toggle */}
         <div className="flex items-center gap-1.5 text-[12px]">
           <Globe className="w-3.5 h-3.5 text-[var(--text-muted)]" />
-          <span className="text-[var(--text-muted)] font-mono text-[11px]">Spoken:</span>
+          <span className="text-[var(--text-muted)] font-mono text-[11px]">{tx("Spoken:")}</span>
           <div className="inline-flex rounded-lg bg-[var(--bg-primary)] p-0.5 border border-[var(--border-standard)]">
             <button
               type="button"
@@ -310,8 +312,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
-              മലയാളം (Malayalam)
-            </button>
+              {tx("മലയാളം (Malayalam)")}</button>
             <button
               type="button"
               onClick={() => setSelectedLang('en-IN')}
@@ -322,8 +323,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
-              English
-            </button>
+              {tx("English")}</button>
             <button
               type="button"
               onClick={() => setSelectedLang('unknown')}
@@ -334,8 +334,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
-              Auto Detect
-            </button>
+              {tx("Auto Detect")}</button>
           </div>
         </div>
       </div>
@@ -343,13 +342,11 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       <div className="space-y-4">
         <div>
           <h2 className="text-[20px] font-bold text-[var(--text-primary)] flex items-center gap-2">
-            <span>Record your complaint</span>
+            <span>{tx("Record your complaint")}</span>
             <Sparkles className="w-4 h-4 text-[var(--brand)]" />
           </h2>
           <p className="text-[14px] text-[var(--text-secondary)] mt-1">
-            Tap the mic, speak naturally about your trip (bus route, time, and grievance), then tap stop.
-            Transcribed in real-time with Sarvam AI.
-          </p>
+            {tx("Tap the mic, speak naturally about your trip (bus route, time, and grievance), then tap stop. Transcribed in real-time with Sarvam AI.")}</p>
         </div>
 
         <div className="flex items-center gap-5 pt-2">
@@ -357,7 +354,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
             type="button"
             onClick={isRecording ? () => void stopRecording() : () => void startRecording()}
             disabled={isProcessing}
-            aria-label={isRecording ? 'Stop recording' : 'Start recording'}
+            aria-label={isRecording ? tx('Stop recording') : tx('Start recording')}
             className={`w-[76px] h-[76px] rounded-full flex flex-col items-center justify-center transition-all duration-150 cursor-pointer shrink-0 shadow-lg ${
               isRecording
                 ? 'bg-[var(--semantic-danger)] text-white ring-4 ring-red-200 animate-pulse'
@@ -379,27 +376,26 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                 <div className="inline-flex items-center gap-2 text-[14px] font-mono font-medium text-[var(--text-primary)]">
                   <span className="w-2.5 h-2.5 rounded-full bg-[var(--semantic-danger)] animate-ping" />
                   <span>
-                    Recording ({formatTimer(recordingSeconds)} / {formatTimer(MAX_SECONDS)})
+                    {tx("Recording (")}{formatTimer(recordingSeconds)} / {formatTimer(MAX_SECONDS)})
                   </span>
                 </div>
-                <p className="text-[12px] text-[var(--text-secondary)]">Tap square when finished speaking</p>
+                <p className="text-[12px] text-[var(--text-secondary)]">{tx("Tap square when finished speaking")}</p>
               </div>
             ) : isProcessing ? (
               <div className="space-y-0.5">
                 <div className="text-[14px] font-semibold text-[var(--brand)] flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-[var(--brand)] animate-ping" />
-                  <span>Transcribing with Sarvam AI…</span>
+                  <span>{tx("Transcribing with Sarvam AI…")}</span>
                 </div>
                 <p className="text-[12px] text-[var(--text-secondary)]">
-                  Extracting route, bus number, and grievance category
-                </p>
+                  {tx("Extracting route, bus number, and grievance category")}</p>
               </div>
             ) : (
               <div className="space-y-0.5">
                 <div className="text-[14px] font-medium text-[var(--text-primary)]">
-                  {selectedLang === 'ml-IN' ? 'റെക്കോർഡ് ചെയ്യാൻ മൈക്ക് അമർത്തുക' : 'Tap mic to start speaking'}
+                  {selectedLang === 'ml-IN' ? 'റെക്കോർഡ് ചെയ്യാൻ മൈക്ക് അമർത്തുക' : tx("Tap mic to start speaking")}
                 </div>
-                <p className="text-[12px] text-[var(--text-secondary)]">Up to {MAX_SECONDS} seconds · Audio processed securely</p>
+                <p className="text-[12px] text-[var(--text-secondary)]">{tx("Up to")}{MAX_SECONDS} {tx("seconds · Audio processed securely")}</p>
               </div>
             )}
           </div>
@@ -419,11 +415,11 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
             <div className="flex items-center justify-between">
               <span className="font-mono text-[11px] uppercase tracking-wider text-[var(--brand)] font-bold flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                <span>Transcribed with Sarvam AI:</span>
+                <span>{tx("Transcribed with Sarvam AI:")}</span>
               </span>
               {detectedProvider && (
                 <span className="text-[10px] font-mono text-[var(--text-muted)]">
-                  via {detectedProvider}
+                  {tx("via")}{detectedProvider}
                 </span>
               )}
             </div>
@@ -434,8 +430,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
             {englishTranslation && englishTranslation !== liveTranscript && (
               <div className="pt-2 border-t border-[var(--border-standard)] mt-2">
                 <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--text-muted)] block">
-                  English Translation (Sarvam Saaras):
-                </span>
+                  {tx("English Translation (Sarvam Saaras):")}</span>
                 <p className="text-[13px] text-[var(--text-secondary)] italic mt-0.5">
                   “{englishTranslation}”
                 </p>
@@ -445,12 +440,9 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         ) : (
           <div>
             <span className="font-mono text-[11px] uppercase tracking-wider text-[var(--text-muted)] block">
-              Sample phrasing:
-            </span>
+              {tx("Sample phrasing:")}</span>
             <p className="italic text-[13px] text-[var(--text-secondary)] mt-0.5">
-              “I have a cleanliness complaint about the bus travelling from Guruvayur to Kozhikode. The seats in the
-              middle row were very dirty.”
-            </p>
+              {tx("“I have a cleanliness complaint about the bus travelling from Guruvayur to Kozhikode. The seats in the middle row were very dirty.”")}</p>
           </div>
         )}
       </div>
@@ -464,11 +456,9 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
               onClick={() => void stopRecording()}
               icon={<Square className="w-3.5 h-3.5 fill-current" />}
             >
-              Done Speaking
-            </Button>
+              {tx("Done Speaking")}</Button>
             <Button variant="secondary" size="md" onClick={cancelRecording} icon={<X className="w-3.5 h-3.5" />}>
-              Cancel
-            </Button>
+              {tx("Cancel")}</Button>
           </>
         ) : (
           <div className="flex items-center gap-4">
@@ -478,7 +468,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
               className="text-[12px] font-mono text-[var(--brand)] hover:underline inline-flex items-center gap-1.5 cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>Load sample English voice</span>
+              <span>{tx("Load sample English voice")}</span>
             </button>
             <button
               type="button"
@@ -486,7 +476,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
               className="text-[12px] font-mono text-[var(--brand)] hover:underline inline-flex items-center gap-1.5 cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>Load sample മലയാളം voice</span>
+              <span>{tx("Load sample മലയാളം voice")}</span>
             </button>
           </div>
         )}

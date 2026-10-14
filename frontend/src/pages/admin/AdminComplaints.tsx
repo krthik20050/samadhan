@@ -1,3 +1,4 @@
+import { useText } from '../../hooks/useText';
 import React, { useState, useEffect } from 'react';
 import { complaintsService } from '../../lib/api';
 import type { ComplaintData, ComplaintStatus } from '../../types';
@@ -15,6 +16,7 @@ import {
 } from 'lucide-react';
 
 export const AdminComplaints: React.FC = () => {
+  const tx = useText();
   const [complaints, setComplaints] = useState<ComplaintData[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -93,18 +95,16 @@ export const AdminComplaints: React.FC = () => {
       {/* Title */}
       <div>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-[var(--text-primary)] font-['Plus_Jakarta_Sans']">
-          Depot Grievance Management
-        </h1>
+          {tx("Depot Grievance Management")}</h1>
         <p className="text-sm text-[var(--text-secondary)] mt-1">
-          Review, assign, and update investigation records. All passenger identities remain anonymized.
-        </p>
+          {tx("Review, assign, and update investigation records. All passenger identities remain anonymized.")}</p>
       </div>
 
       {/* Filter and Search Bar */}
       <div className="p-4 sm:p-5 bg-[var(--surface-primary)] rounded-[14px] border border-[var(--border-standard)] flex flex-col lg:flex-row items-center gap-3">
         <div className="w-full lg:flex-1">
           <Input
-            placeholder="Search by reference #, route, or keyword..."
+            placeholder={tx("Search by reference #, route, or keyword...")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             leftIcon={<Search className="w-4 h-4 text-[var(--text-muted)]" />}
@@ -119,13 +119,13 @@ export const AdminComplaints: React.FC = () => {
               onChange={(e) => setStatusFilter(e.target.value)}
               className="w-full sm:w-auto bg-[var(--surface-primary)] border border-[var(--border-standard)] rounded-[8px] py-2 px-3 text-sm h-[48px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand)]"
             >
-              <option value="all">All Statuses</option>
-              <option value="submitted">Submitted</option>
-              <option value="assigned">Assigned</option>
-              <option value="in_progress">In Progress</option>
-              <option value="sla_breached">SLA Breached</option>
-              <option value="escalated">Escalated</option>
-              <option value="resolved">Resolved</option>
+              <option value="all">{tx("All Statuses")}</option>
+              <option value="submitted">{tx("Submitted")}</option>
+              <option value="assigned">{tx("Assigned")}</option>
+              <option value="in_progress">{tx("In Progress")}</option>
+              <option value="sla_breached">{tx("SLA Breached")}</option>
+              <option value="escalated">{tx("Escalated")}</option>
+              <option value="resolved">{tx("Resolved")}</option>
             </select>
           </div>
 
@@ -134,10 +134,10 @@ export const AdminComplaints: React.FC = () => {
             onChange={(e) => setCategoryFilter(e.target.value)}
             className="w-full sm:w-auto bg-[var(--surface-primary)] border border-[var(--border-standard)] rounded-[8px] py-2 px-3 text-sm h-[48px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand)]"
           >
-            <option value="all">All Categories</option>
+            <option value="all">{tx("All Categories")}</option>
             {COMPLAINT_CATEGORIES.map((cat) => (
               <option key={cat.id} value={cat.id}>
-                {cat.labelEn}
+                {tx(cat.labelEn)}
               </option>
             ))}
           </select>
@@ -150,21 +150,20 @@ export const AdminComplaints: React.FC = () => {
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-[var(--border-standard)] text-[11px] font-mono font-bold uppercase text-[var(--text-muted)] bg-[var(--bg-primary)]">
-                <th className="py-2.5 px-3.5">Reference</th>
-                <th className="py-2.5 px-3.5">Route</th>
-                <th className="py-2.5 px-3.5">Category</th>
-                <th className="py-2.5 px-3.5">Depot</th>
-                <th className="py-2.5 px-3.5">Status</th>
-                <th className="py-2.5 px-3.5">Contact (Anonymized)</th>
-                <th className="py-2.5 px-3.5 text-right">Action</th>
+                <th className="py-2.5 px-3.5">{tx("Reference")}</th>
+                <th className="py-2.5 px-3.5">{tx("Route")}</th>
+                <th className="py-2.5 px-3.5">{tx("Category")}</th>
+                <th className="py-2.5 px-3.5">{tx("Depot")}</th>
+                <th className="py-2.5 px-3.5">{tx("Status")}</th>
+                <th className="py-2.5 px-3.5">{tx("Contact (Anonymized)")}</th>
+                <th className="py-2.5 px-3.5 text-right">{tx("Action")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border-subtle)] text-[13px]">
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-8 text-center text-[var(--text-secondary)]">
-                    No grievances matching filters.
-                  </td>
+                    {tx("No grievances matching filters.")}</td>
                 </tr>
               ) : (
                 filtered.map((item) => (
@@ -180,17 +179,17 @@ export const AdminComplaints: React.FC = () => {
                     </td>
                     <td className="py-3 px-3.5">
                       <span className="text-[11px] font-mono uppercase px-2 py-0.5 rounded-[4px] bg-[var(--bg-primary)] border border-[var(--border-standard)] text-[var(--text-primary)]">
-                        {item.category.replace('_', ' ')}
+                        {tx(item.category.replace(/_/g, ' '))}
                       </span>
                     </td>
                     <td className="py-3 px-3.5 text-[var(--text-secondary)]">
-                      {item.assignedDepot?.name || 'Pending routing'}
+                      {item.assignedDepot?.name || tx('Pending routing')}
                     </td>
                     <td className="py-3 px-3.5">
                       <Badge variant="status" status={item.status} />
                     </td>
                     <td className="py-3 px-3.5 font-mono text-[11px] text-[var(--text-muted)]">
-                      {item.passengerContact?.anonymizedTarget || 'Confidential'}
+                      {item.passengerContact?.anonymizedTarget || tx('Confidential')}
                     </td>
                     <td className="py-3 px-3.5 text-right">
                       <Button
@@ -199,8 +198,7 @@ export const AdminComplaints: React.FC = () => {
                         onClick={() => setSelectedComplaint(item)}
                         icon={<Eye className="w-3.5 h-3.5 text-[var(--brand)]" />}
                       >
-                        Inspect
-                      </Button>
+                        {tx("Inspect")}</Button>
                     </td>
                   </tr>
                 ))
@@ -223,32 +221,31 @@ export const AdminComplaints: React.FC = () => {
               <div className="flex items-center gap-2">
                 <Badge variant="status" status={selectedComplaint.status} />
                 <span className="text-[11px] font-mono text-[var(--text-muted)]">
-                  SLA: {selectedComplaint.slaTargetHours} Hours Target
-                </span>
+                  {tx("SLA:")}{selectedComplaint.slaTargetHours} {tx("Hours Target")}</span>
               </div>
               <time className="text-[11px] font-mono text-[var(--text-muted)]">
-                Logged: {selectedComplaint.createdAt.substring(0, 16).replace('T', ' ')}
+                {tx("Logged:")}{selectedComplaint.createdAt.substring(0, 16).replace('T', ' ')}
               </time>
             </div>
 
             {/* Journey Details */}
             <div className="grid grid-cols-2 gap-3 p-4 rounded-[10px] bg-[var(--bg-primary)] border border-[var(--border-standard)] text-sm">
               <div>
-                <span className="text-[11px] font-mono uppercase text-[var(--text-muted)]">Route:</span>
+                <span className="text-[11px] font-mono uppercase text-[var(--text-muted)]">{tx("Route:")}</span>
                 <p className="font-bold text-[var(--text-primary)] mt-0.5">
                   {selectedComplaint.route.origin} → {selectedComplaint.route.destination}
                 </p>
                 {selectedComplaint.route.via && (
-                  <p className="text-[12px] text-[var(--text-secondary)]">Via: {selectedComplaint.route.via}</p>
+                  <p className="text-[12px] text-[var(--text-secondary)]">{tx("Via:")}{selectedComplaint.route.via}</p>
                 )}
               </div>
               <div>
-                <span className="text-[11px] font-mono uppercase text-[var(--text-muted)]">Assigned Depot:</span>
+                <span className="text-[11px] font-mono uppercase text-[var(--text-muted)]">{tx("Assigned Depot:")}</span>
                 <p className="font-bold text-[var(--text-primary)] mt-0.5">
                   {selectedComplaint.assignedDepot?.name || 'Unassigned'}
                 </p>
                 <p className="text-[12px] text-[var(--text-secondary)]">
-                  Officer: {selectedComplaint.assignedDepot?.officerInCharge}
+                  {tx("Officer:")}{selectedComplaint.assignedDepot?.officerInCharge}
                 </p>
               </div>
             </div>
@@ -256,8 +253,7 @@ export const AdminComplaints: React.FC = () => {
             {/* Grievance Statement */}
             <div className="space-y-1">
               <span className="text-[11px] font-mono uppercase text-[var(--text-muted)]">
-                Complainant Statement:
-              </span>
+                {tx("Complainant Statement:")}</span>
               <p className="p-3.5 rounded-[10px] bg-[var(--surface-primary)] border border-[var(--border-standard)] text-[var(--text-primary)] text-[13px] leading-relaxed">
                 {selectedComplaint.description}
               </p>
@@ -267,35 +263,33 @@ export const AdminComplaints: React.FC = () => {
             <div className="p-4 rounded-[10px] bg-[var(--surface-secondary)] border border-[var(--border-standard)] space-y-3">
               <h4 className="text-[14px] font-bold text-[var(--text-primary)] flex items-center gap-2">
                 <UserCheck className="w-4 h-4 text-[var(--brand)]" />
-                <span>Depot Officer Action & Status Progression</span>
+                <span>{tx("Depot Officer Action & Status Progression")}</span>
               </h4>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[11px] font-mono uppercase text-[var(--text-primary)] font-medium">
-                    Update Status To
-                  </label>
+                    {tx("Update Status To")}</label>
                   <select
                     value={newStatus}
                     onChange={(e) => setNewStatus(e.target.value as ComplaintStatus)}
                     className="bg-[var(--surface-primary)] border border-[var(--border-standard)] rounded-[8px] py-2 px-3 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand)]"
                   >
-                    <option value="in_progress">In Progress (Investigation)</option>
-                    <option value="resolved">Resolved (Corrective Action Taken)</option>
-                    <option value="escalated">Escalate to DTO</option>
-                    <option value="rejected">Close / Inapplicable</option>
+                    <option value="in_progress">{tx("In Progress (Investigation)")}</option>
+                    <option value="resolved">{tx("Resolved (Corrective Action Taken)")}</option>
+                    <option value="escalated">{tx("Escalate to DTO")}</option>
+                    <option value="rejected">{tx("Close / Inapplicable")}</option>
                   </select>
                 </div>
 
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[11px] font-mono uppercase text-[var(--text-primary)] font-medium">
-                    Depot Action Log Note
-                  </label>
+                    {tx("Depot Action Log Note")}</label>
                   <input
                     type="text"
                     value={officerNote}
                     onChange={(e) => setOfficerNote(e.target.value)}
-                    placeholder="e.g. Cleaned bay 2, crew counseled"
+                    placeholder={tx("e.g. Cleaned bay 2, crew counseled")}
                     className="bg-[var(--surface-primary)] border border-[var(--border-standard)] rounded-[8px] py-2 px-3 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand)]"
                   />
                 </div>
@@ -312,8 +306,7 @@ export const AdminComplaints: React.FC = () => {
                   onClick={handleUpdateStatus}
                   isLoading={isUpdatingStatus}
                 >
-                  Record Action & Notify Passenger
-                </Button>
+                  {tx("Record Action & Notify Passenger")}</Button>
               </div>
             </div>
           </div>

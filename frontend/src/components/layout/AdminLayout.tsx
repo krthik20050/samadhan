@@ -1,6 +1,8 @@
+import { useText } from '../../hooks/useText';
 import React, { useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { LanguageToggle } from '../common/LanguageToggle';
 import {
   LayoutDashboard,
   FileText,
@@ -15,6 +17,7 @@ import {
 } from 'lucide-react';
 
 export const AdminLayout: React.FC = () => {
+  const tx = useText();
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
@@ -46,8 +49,8 @@ export const AdminLayout: React.FC = () => {
             S
           </div>
           <div>
-            <h1 className="font-bold text-sm leading-tight text-[var(--text-primary)]">SAMADHAN</h1>
-            <p className="text-[11px] font-mono text-[var(--text-muted)]">DEPOT OPERATIONS</p>
+            <h1 className="font-bold text-sm leading-tight text-[var(--text-primary)]">{tx("SAMADHAN")}</h1>
+            <p className="text-[11px] font-mono text-[var(--text-muted)]">{tx("DEPOT OPERATIONS")}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -55,7 +58,7 @@ export const AdminLayout: React.FC = () => {
             type="button"
             onClick={handleLogout}
             className="p-2 rounded-[8px] border border-[var(--border-standard)] text-[var(--text-secondary)] hover:text-[var(--semantic-error)] transition-colors"
-            title="Log out"
+            title={tx("Log out")}
           >
             <LogOut className="w-4 h-4" />
           </button>
@@ -63,7 +66,7 @@ export const AdminLayout: React.FC = () => {
             type="button"
             onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
             className="p-2 rounded-[8px] border border-[var(--border-standard)] text-[var(--text-primary)]"
-            aria-label="Toggle navigation menu"
+            aria-label={tx("Toggle navigation menu")}
           >
             {mobileSidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
           </button>
@@ -77,6 +80,7 @@ export const AdminLayout: React.FC = () => {
         }`}
       >
         {/* Header / Brand */}
+        <div className="p-4"><LanguageToggle /></div>
         <div className="p-5 border-b border-[var(--border-standard)]">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-[8px] bg-[var(--brand)] flex items-center justify-center text-[var(--accent)]">
@@ -84,12 +88,11 @@ export const AdminLayout: React.FC = () => {
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="font-extrabold text-[16px] text-[var(--text-primary)] tracking-tight">SAMADHAN</span>
+                <span className="font-extrabold text-[16px] text-[var(--text-primary)] tracking-tight">{tx("SAMADHAN")}</span>
                 <span className="text-[9px] font-mono font-bold text-[var(--brand)] bg-[var(--surface-secondary)] border border-[var(--border-standard)] px-1.5 py-0.2 rounded">
-                  DEPOT
-                </span>
+                  {tx("DEPOT")}</span>
               </div>
-              <p className="text-[11px] font-mono text-[var(--text-muted)]">Operations Command</p>
+              <p className="text-[11px] font-mono text-[var(--text-muted)]">{tx("Operations Command")}</p>
             </div>
           </div>
 
@@ -100,7 +103,7 @@ export const AdminLayout: React.FC = () => {
             </div>
             <div className="min-w-0 flex-1">
               <div className="font-medium text-[var(--text-primary)] truncate">{user?.name || 'Depot Officer'}</div>
-              <div className="text-[10px] font-mono text-[var(--text-muted)]">Authorised Session</div>
+              <div className="text-[10px] font-mono text-[var(--text-muted)]">{tx("Authorised Session")}</div>
             </div>
           </div>
         </div>
@@ -121,7 +124,7 @@ export const AdminLayout: React.FC = () => {
                 }`}
               >
                 <span className={active ? 'text-[var(--accent)]' : ''}>{item.icon}</span>
-                <span>{item.label}</span>
+                <span>{tx(item.label)}</span>
               </Link>
             );
           })}
@@ -135,7 +138,7 @@ export const AdminLayout: React.FC = () => {
             className="flex items-center justify-center gap-2 w-full py-2 px-3 rounded-[8px] border border-[var(--border-standard)] text-[12px] font-medium text-[var(--semantic-error)] hover:bg-[var(--surface-secondary)] active:scale-[0.98] transition-all cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" />
-            <span>Logout</span>
+            <span>{tx("Logout")}</span>
           </button>
 
           <Link
@@ -143,7 +146,7 @@ export const AdminLayout: React.FC = () => {
             className="flex items-center justify-center gap-2 w-full py-2 px-3 rounded-[8px] border border-[var(--border-standard)] text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-secondary)] active:scale-[0.98] transition-all"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Passenger View</span>
+            <span>{tx("Passenger View")}</span>
           </Link>
         </div>
       </aside>

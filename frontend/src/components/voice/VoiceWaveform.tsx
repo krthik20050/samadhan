@@ -1,3 +1,4 @@
+import { useText } from '../../hooks/useText';
 import React, { useEffect, useState } from 'react';
 
 interface VoiceWaveformProps {
@@ -9,6 +10,7 @@ export const VoiceWaveform: React.FC<VoiceWaveformProps> = ({
   isRecording,
   barCount = 28,
 }) => {
+  const tx = useText();
   const [levels, setLevels] = useState<number[]>(() =>
     Array.from({ length: barCount }, () => 15)
   );
@@ -36,7 +38,7 @@ export const VoiceWaveform: React.FC<VoiceWaveformProps> = ({
   return (
     <div
       className="flex items-center justify-center gap-1 sm:gap-1.5 h-16 sm:h-20 px-4 bg-white rounded-[10px] border border-[#D9D7D0]"
-      aria-label="Voice audio waveform"
+      aria-label={tx("Voice audio waveform")}
     >
       {activeLevels.map((level, idx) => (
         <div

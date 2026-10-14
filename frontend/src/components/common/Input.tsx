@@ -1,4 +1,5 @@
 import React from 'react';
+import { useText } from '../../hooks/useText';
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -10,13 +11,15 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ label, helperText, error, leftIcon, rightIcon, className = '', id, ...props }, ref) => {
-    const inputId = id || `input-${Math.random().toString(36).substring(2, 9)}`;
+    const tx = useText();
+    const generatedId = React.useId();
+    const inputId = id || generatedId;
 
     return (
       <div className="w-full flex flex-col gap-1.5 text-left">
         {label && (
           <label htmlFor={inputId} className="text-[14px] font-semibold text-[#171A19]">
-            {label}
+            {tx(label)}
           </label>
         )}
         <div className="relative flex items-center">
@@ -41,9 +44,9 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             </div>
           )}
         </div>
-        {error && <span className="text-[12px] font-semibold text-[#B34747] mt-0.5">{error}</span>}
+        {error && <span className="text-[12px] font-semibold text-[#B34747] mt-0.5">{tx(error)}</span>}
         {helperText && !error && (
-          <span className="text-[12px] text-[#6B706C] leading-relaxed">{helperText}</span>
+          <span className="text-[12px] text-[#6B706C] leading-relaxed">{tx(helperText)}</span>
         )}
       </div>
     );

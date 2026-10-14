@@ -1,3 +1,4 @@
+import { useText } from '../../hooks/useText';
 import React, { useState } from 'react';
 import type { DraftComplaint } from '../../context/ComplaintDraftContext';
 import { COMPLAINT_CATEGORIES } from '../../lib/constants';
@@ -26,6 +27,7 @@ export const ExtractedDetailsCard: React.FC<ExtractedDetailsCardProps> = ({
   onConfirm,
   isEditableDefault = false,
 }) => {
+  const tx = useText();
   const { language } = useLanguage();
   const [isEditing, setIsEditing] = useState(isEditableDefault);
   const [formData, setFormData] = useState<DraftComplaint>({ ...draft });
@@ -43,11 +45,9 @@ export const ExtractedDetailsCard: React.FC<ExtractedDetailsCardProps> = ({
       <div className="flex items-center justify-between pb-3 border-b border-[var(--border-standard)]">
         <div>
           <h3 className="text-[17px] font-bold text-[var(--text-primary)]">
-            Review structured details
-          </h3>
+            {tx("Review structured details")}</h3>
           <p className="text-[13px] text-[var(--text-secondary)]">
-            Extracted from spoken speech. You can edit any field.
-          </p>
+            {tx("Extracted from spoken speech. You can edit any field.")}</p>
         </div>
         {!isEditing ? (
           <button
@@ -56,7 +56,7 @@ export const ExtractedDetailsCard: React.FC<ExtractedDetailsCardProps> = ({
             className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[var(--brand)] hover:underline cursor-pointer"
           >
             <Edit3 className="w-3.5 h-3.5" />
-            <span>Edit</span>
+            <span>{tx("Edit")}</span>
           </button>
         ) : (
           <button
@@ -65,7 +65,7 @@ export const ExtractedDetailsCard: React.FC<ExtractedDetailsCardProps> = ({
             className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[var(--semantic-success)] hover:underline cursor-pointer"
           >
             <Check className="w-3.5 h-3.5" />
-            <span>Save edits</span>
+            <span>{tx("Save edits")}</span>
           </button>
         )}
       </div>
@@ -74,8 +74,7 @@ export const ExtractedDetailsCard: React.FC<ExtractedDetailsCardProps> = ({
       {draft.audioTranscript && (
         <div className="space-y-1">
           <span className="text-[11px] font-mono uppercase tracking-wider text-[var(--text-muted)] block">
-            Original Spoken Transcript:
-          </span>
+            {tx("Original Spoken Transcript:")}</span>
           <p className="text-[14px] italic text-[var(--text-primary)] leading-relaxed">
             “{draft.audioTranscript}”
           </p>
@@ -89,14 +88,14 @@ export const ExtractedDetailsCard: React.FC<ExtractedDetailsCardProps> = ({
           <div className="py-4 space-y-1">
             <div className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-[var(--text-muted)]">
               <MapPin className="w-3.5 h-3.5 text-[var(--brand)]" />
-              <span>Route</span>
+              <span>{tx("Route")}</span>
             </div>
             <div className="text-[18px] font-bold text-[var(--text-primary)]">
               {draft.origin || 'Origin stop'} → {draft.destination || 'Destination stop'}
             </div>
             {draft.via && (
               <div className="text-[13px] text-[var(--text-secondary)]">
-                Via: {draft.via}
+                {tx("Via:")}{draft.via}
               </div>
             )}
           </div>
@@ -104,8 +103,7 @@ export const ExtractedDetailsCard: React.FC<ExtractedDetailsCardProps> = ({
           {/* Category */}
           <div className="py-4 space-y-1">
             <div className="text-[11px] font-mono uppercase tracking-wider text-[var(--text-muted)]">
-              Issue Category
-            </div>
+              {tx("Issue Category")}</div>
             <div className="flex items-center justify-between">
               <span className="text-[15px] font-bold text-[var(--text-primary)]">
                 {language === 'ml'
@@ -113,8 +111,7 @@ export const ExtractedDetailsCard: React.FC<ExtractedDetailsCardProps> = ({
                   : activeCategoryMeta?.labelEn}
               </span>
               <span className="text-[11px] font-mono text-[var(--text-muted)]">
-                {activeCategoryMeta?.slaHours}h target window
-              </span>
+                {activeCategoryMeta?.slaHours}{tx("h target window")}</span>
             </div>
           </div>
 
@@ -123,7 +120,7 @@ export const ExtractedDetailsCard: React.FC<ExtractedDetailsCardProps> = ({
             <div>
               <div className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-[var(--text-muted)]">
                 <Bus className="w-3.5 h-3.5 text-[var(--brand)]" />
-                <span>Bus / Fleet Number</span>
+                <span>{tx("Bus / Fleet Number")}</span>
               </div>
               <div className="text-[15px] font-mono font-medium text-[var(--text-primary)] mt-0.5">
                 {draft.busNumber || 'Pending verification'}
@@ -132,8 +129,7 @@ export const ExtractedDetailsCard: React.FC<ExtractedDetailsCardProps> = ({
 
             <div>
               <div className="text-[11px] font-mono uppercase tracking-wider text-[var(--text-muted)]">
-                Location
-              </div>
+                {tx("Location")}</div>
               <div className="text-[14px] text-[var(--text-primary)] mt-0.5">
                 {draft.location || 'Inside passenger coach'}
               </div>
@@ -144,7 +140,7 @@ export const ExtractedDetailsCard: React.FC<ExtractedDetailsCardProps> = ({
           <div className="py-4 space-y-1">
             <div className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-[var(--text-muted)]">
               <FileText className="w-3.5 h-3.5 text-[var(--brand)]" />
-              <span>Grievance Summary</span>
+              <span>{tx("Grievance Summary")}</span>
             </div>
             <div className="text-[14px] text-[var(--text-primary)] leading-relaxed whitespace-pre-wrap">
               {draft.description}
@@ -155,24 +151,23 @@ export const ExtractedDetailsCard: React.FC<ExtractedDetailsCardProps> = ({
         <div className="space-y-4 py-2">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
-              label="Origin (Starting Stop)"
+              label={tx("Origin (Starting Stop)")}
               value={formData.origin}
               onChange={(e) => setFormData({ ...formData, origin: e.target.value })}
-              placeholder="e.g. Guruvayur"
+              placeholder={tx("e.g. Guruvayur")}
             />
             <Input
-              label="Destination (Ending Stop)"
+              label={tx("Destination (Ending Stop)")}
               value={formData.destination}
               onChange={(e) => setFormData({ ...formData, destination: e.target.value })}
-              placeholder="e.g. Kozhikode"
+              placeholder={tx("e.g. Kozhikode")}
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
               <label className="text-[13px] font-medium text-[var(--text-primary)]">
-                Grievance Category
-              </label>
+                {tx("Grievance Category")}</label>
               <select
                 value={formData.category}
                 onChange={(e) =>
@@ -185,31 +180,30 @@ export const ExtractedDetailsCard: React.FC<ExtractedDetailsCardProps> = ({
               >
                 {COMPLAINT_CATEGORIES.map((cat) => (
                   <option key={cat.id} value={cat.id}>
-                    {cat.labelEn}
+                    {tx(cat.labelEn)}
                   </option>
                 ))}
               </select>
             </div>
 
             <Input
-              label="Bus Registration (Optional)"
+              label={tx("Bus Registration (Optional)")}
               value={formData.busNumber}
               onChange={(e) => setFormData({ ...formData, busNumber: e.target.value })}
-              placeholder="e.g. KL-15-A-4892"
+              placeholder={tx("e.g. KL-15-A-4892")}
             />
           </div>
 
           <Input
-            label="Location on Bus or Stop"
+            label={tx("Location on Bus or Stop")}
             value={formData.location}
             onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-            placeholder="e.g. Middle row seats"
+            placeholder={tx("e.g. Middle row seats")}
           />
 
           <div className="flex flex-col gap-1.5">
             <label className="text-[13px] font-medium text-[var(--text-primary)]">
-              Description
-            </label>
+              {tx("Description")}</label>
             <textarea
               rows={3}
               value={formData.description}
@@ -227,11 +221,9 @@ export const ExtractedDetailsCard: React.FC<ExtractedDetailsCardProps> = ({
                 setIsEditing(false);
               }}
             >
-              Cancel Edits
-            </Button>
+              {tx("Cancel Edits")}</Button>
             <Button variant="primary" size="sm" onClick={handleSaveEdit}>
-              Save Changes
-            </Button>
+              {tx("Save Changes")}</Button>
           </div>
         </div>
       )}
@@ -239,7 +231,7 @@ export const ExtractedDetailsCard: React.FC<ExtractedDetailsCardProps> = ({
       {/* Depot notice */}
       <div className="flex items-center gap-2 text-[13px] text-[var(--text-secondary)]">
         <AlertCircle className="w-4 h-4 text-[var(--brand)] shrink-0" />
-        <span>Operating depot will be resolved from official route schedules.</span>
+        <span>{tx("Operating depot will be resolved from official route schedules.")}</span>
       </div>
 
       {!isEditing && (
@@ -251,15 +243,13 @@ export const ExtractedDetailsCard: React.FC<ExtractedDetailsCardProps> = ({
             onClick={onConfirm}
             icon={<Check className="w-4 h-4" />}
           >
-            Looks Correct — Continue
-          </Button>
+            {tx("Looks Correct — Continue")}</Button>
           <Button
             variant="secondary"
             size="md"
             onClick={() => setIsEditing(true)}
           >
-            Edit Details
-          </Button>
+            {tx("Edit Details")}</Button>
         </div>
       )}
     </div>

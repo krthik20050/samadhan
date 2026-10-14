@@ -1,3 +1,4 @@
+import { useText } from '../../hooks/useText';
 import React from 'react';
 import { AlertTriangle, Clock, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -13,6 +14,7 @@ export const EscalationBanner: React.FC<EscalationBannerProps> = ({
   oldestBreachRef = 'SAM-2026-000982',
   depotName = 'Palakkad Depot',
 }) => {
+  const tx = useText();
   if (breachCount <= 0) return null;
 
   return (
@@ -24,28 +26,25 @@ export const EscalationBanner: React.FC<EscalationBannerProps> = ({
         <div>
           <div className="flex items-center gap-2">
             <h4 className="text-[15px] font-bold text-[var(--semantic-error)]">
-              {breachCount} Grievances Breached Official Depot SLA
-            </h4>
+              {breachCount} {tx("Grievances Breached Official Depot SLA")}</h4>
             <span className="text-[10px] font-mono font-bold uppercase bg-[var(--semantic-error)] text-white px-1.5 py-0.5 rounded-[4px]">
-              ACTION REQUIRED
-            </span>
+              {tx("ACTION REQUIRED")}</span>
           </div>
           <p className="text-[13px] text-[var(--text-secondary)] mt-0.5">
-            Active escalation: Case <span className="font-mono font-bold text-[var(--text-primary)]">{oldestBreachRef}</span> at {depotName} exceeded resolution window and is escalated to DTO.
-          </p>
+            {tx("Active escalation: Case")}<span className="font-mono font-bold text-[var(--text-primary)]">{oldestBreachRef}</span> {tx("at")}{depotName} {tx("exceeded resolution window and is escalated to DTO.")}</p>
         </div>
       </div>
 
       <div className="flex items-center gap-3 shrink-0">
         <div className="hidden lg:flex items-center gap-1.5 text-[12px] text-[var(--text-muted)] font-mono">
           <Clock className="w-3.5 h-3.5 text-[var(--semantic-warning)]" />
-          <span>Auto-escalation active</span>
+          <span>{tx("Auto-escalation active")}</span>
         </div>
         <Link
           to="/admin/depot/escalations"
           className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-[8px] bg-[var(--semantic-error)] hover:opacity-90 text-white text-[13px] font-medium transition-all active:scale-[0.98]"
         >
-          <span>Review Escalations</span>
+          <span>{tx("Review Escalations")}</span>
           <ArrowRight className="w-3.5 h-3.5" />
         </Link>
       </div>

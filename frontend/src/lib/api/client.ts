@@ -9,6 +9,9 @@ export function setAuthTokenProvider(fn: () => Promise<string | null>): void {
 }
 
 async function bearerToken(): Promise<string | null> {
+  const { staffSession } = await import('../auth');
+  const staffToken = staffSession.token();
+  if (staffToken) return staffToken;
   if (getToken) {
     try {
       const t = await getToken();
@@ -19,8 +22,7 @@ async function bearerToken(): Promise<string | null> {
   }
   // Staff-only fallback: depot officers signed in with the shared token.
   // (Dynamic import avoids a static cycle with lib/auth.)
-  const { staffSession } = await import('../auth');
-  return staffSession.token();
+  return null;
 }
 
 const BASE = (
@@ -32,13 +34,17 @@ export class BackendUnavailable extends Error {}
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 15000);
+  const timer = setTimeout(() => ctrl.abort(), path === '/api/v1/extract/ticket' ? 60000 : 15000);
   const headers = new Headers(init?.headers);
   const token = await bearerToken();
   if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
   try {
     const res = await fetch(`${BASE}${path}`, { ...init, headers, signal: ctrl.signal });
-    if (!res.ok) throw new Error(`Backend ${res.status}`);
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null);
+      const detail = typeof payload?.detail === 'string' ? `: ${payload.detail}` : '';
+      throw new Error(`Backend ${res.status}${detail}`);
+    }
     return (await res.json()) as T;
   } catch (e) {
     if (e instanceof Error && e.message.startsWith('Backend ')) throw e;

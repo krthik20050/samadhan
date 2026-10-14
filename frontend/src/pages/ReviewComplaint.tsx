@@ -1,3 +1,4 @@
+import { useText } from '../hooks/useText';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useComplaintDraft } from '../hooks/useComplaintDraft';
@@ -7,6 +8,7 @@ import { COMPLAINT_CATEGORIES } from '../lib/constants';
 import { complaintsService } from '../lib/api';
 import { Button } from '../components/common/Button';
 import { Input } from '../components/common/Input';
+import { TICKET_FIELDS } from '../lib/ticketJourney';
 import {
   ArrowLeft,
   ArrowRight,
@@ -20,6 +22,7 @@ import {
 } from 'lucide-react';
 
 export const ReviewComplaint: React.FC = () => {
+  const tx = useText();
   const navigate = useNavigate();
   const { language } = useLanguage();
   const { draft, updateDraft, setLastSubmittedComplaint } = useComplaintDraft();
@@ -44,6 +47,10 @@ export const ReviewComplaint: React.FC = () => {
   const activeCategory = COMPLAINT_CATEGORIES.find((c) => c.id === draft.category) || COMPLAINT_CATEGORIES[0];
 
   const handleSubmit = async () => {
+    if (!draft.origin.trim() || !draft.destination.trim() || !draft.description.trim()) {
+      setSubmissionError('Complete your journey and description before submitting.');
+      return;
+    }
     setIsSubmitting(true);
     setSubmissionError(null);
 
@@ -51,13 +58,13 @@ export const ReviewComplaint: React.FC = () => {
       const result = await complaintsService.submitComplaint({
         category: draft.category,
         route: {
-          origin: draft.origin || 'Guruvayur',
-          destination: draft.destination || 'Kozhikode',
+          origin: draft.origin,
+          destination: draft.destination,
           via: draft.via,
         },
         busNumber: draft.busNumber,
         location: draft.location || 'Onboard bus',
-        description: draft.description || 'Grievance reported by passenger.',
+        description: draft.description,
         audioTranscript: draft.audioTranscript,
         contactPhone: phone.trim() ? phone.trim() : undefined,
         preferredContactChannel: channel,
@@ -94,36 +101,32 @@ export const ReviewComplaint: React.FC = () => {
           className="inline-flex items-center gap-1.5 text-[14px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Edit details</span>
+          <span>{tx("Edit details")}</span>
         </button>
       </div>
 
       {/* Step Header */}
       <div className="mb-8 space-y-2">
         <div className="text-[12px] font-mono font-bold tracking-wider text-[var(--brand)] uppercase">
-          STEP 03 / 03
-        </div>
+          {tx("STEP 03 / 03")}</div>
         <h1 className="text-[34px] sm:text-[42px] font-extrabold text-[var(--text-primary)] tracking-tight font-['Plus_Jakarta_Sans'] leading-tight">
-          Review your complaint.
-        </h1>
+          {tx("Review your complaint.")}</h1>
         <p className="text-[16px] text-[var(--text-secondary)] max-w-xl leading-relaxed">
-          Please verify the information below. Once submitted, your grievance is assigned to the operating depot for time-bound resolution.
-        </p>
+          {tx("Please verify the information below. Once submitted, your grievance is assigned to the operating depot for time-bound resolution.")}</p>
       </div>
 
       {submissionError && (
         <div className="mb-6 p-4 rounded-[10px] bg-[var(--surface-primary)] border border-[var(--semantic-error)] text-[var(--semantic-error)] text-[14px] flex items-start gap-2.5">
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
           <div>
-            <div className="font-semibold">Unable to submit right now</div>
-            <p className="text-[13px] mt-0.5">{submissionError}</p>
+            <div className="font-semibold">{tx("Unable to submit right now")}</div>
+            <p className="text-[13px] mt-0.5">{tx(submissionError)}</p>
             <button
               type="button"
               onClick={handleSubmit}
               className="mt-2 text-[12px] font-mono uppercase underline font-bold"
             >
-              Try Again
-            </button>
+              {tx("Try Again")}</button>
           </div>
         </div>
       )}
@@ -135,15 +138,14 @@ export const ReviewComplaint: React.FC = () => {
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-mono uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1.5">
               <FileText className="w-3.5 h-3.5 text-[var(--brand)]" />
-              <span>WHAT YOU REPORTED</span>
+              <span>{tx("WHAT YOU REPORTED")}</span>
             </span>
             <button
               type="button"
-              onClick={() => navigate('/file-complaint?step=1')}
+              onClick={() => navigate('/file-complaint?step=2')}
               className="text-[13px] font-medium text-[var(--brand)] hover:underline cursor-pointer"
             >
-              Edit
-            </button>
+              {tx("Edit")}</button>
           </div>
           <p className="text-[15px] text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">
             {draft.description || 'No description provided.'}
@@ -155,15 +157,14 @@ export const ReviewComplaint: React.FC = () => {
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-mono uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1.5">
               <MapPin className="w-3.5 h-3.5 text-[var(--brand)]" />
-              <span>JOURNEY ROUTE</span>
+              <span>{tx("JOURNEY ROUTE")}</span>
             </span>
             <button
               type="button"
-              onClick={() => navigate('/file-complaint?step=2')}
+              onClick={() => navigate('/file-complaint?step=1')}
               className="text-[13px] font-medium text-[var(--brand)] hover:underline cursor-pointer"
             >
-              Edit
-            </button>
+              {tx("Edit")}</button>
           </div>
 
           <div className="flex flex-col sm:flex-row sm:items-baseline gap-2 sm:gap-3">
@@ -178,13 +179,12 @@ export const ReviewComplaint: React.FC = () => {
 
           {draft.via && (
             <div className="text-[13px] text-[var(--text-secondary)]">
-              Via: <span className="text-[var(--text-primary)] font-medium">{draft.via}</span>
+              {tx("Via:")}<span className="text-[var(--text-primary)] font-medium">{draft.via}</span>
             </div>
           )}
 
           <div className="text-[12px] text-[var(--text-secondary)] pt-1">
-            Route identified. The appropriate operating depot will be assigned automatically.
-          </div>
+            {tx("Route identified. The appropriate operating depot will be assigned automatically.")}</div>
         </div>
 
         {/* CATEGORY */}
@@ -192,15 +192,14 @@ export const ReviewComplaint: React.FC = () => {
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-mono uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1.5">
               <Tag className="w-3.5 h-3.5 text-[var(--brand)]" />
-              <span>CATEGORY</span>
+              <span>{tx("CATEGORY")}</span>
             </span>
             <button
               type="button"
-              onClick={() => navigate('/file-complaint?step=1')}
+              onClick={() => navigate('/file-complaint?step=2')}
               className="text-[13px] font-medium text-[var(--brand)] hover:underline cursor-pointer"
             >
-              Edit
-            </button>
+              {tx("Edit")}</button>
           </div>
           <div className="text-[16px] font-bold text-[var(--text-primary)]">
             {language === 'ml' ? activeCategory.labelMl : activeCategory.labelEn}
@@ -212,18 +211,18 @@ export const ReviewComplaint: React.FC = () => {
           <div className="py-5 space-y-2">
             <div className="text-[11px] font-mono uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1.5">
               <Bus className="w-3.5 h-3.5 text-[var(--brand)]" />
-              <span>VEHICLE & LOCATION</span>
+              <span>{tx("VEHICLE & LOCATION")}</span>
             </div>
             <div className="flex flex-wrap gap-6 text-[14px]">
               {draft.busNumber && (
                 <div>
-                  <span className="text-[var(--text-secondary)] text-[12px] block">Bus Registration:</span>
+                  <span className="text-[var(--text-secondary)] text-[12px] block">{tx("Bus Registration:")}</span>
                   <span className="font-mono font-medium text-[var(--text-primary)]">{draft.busNumber}</span>
                 </div>
               )}
               {draft.location && draft.location !== 'Onboard bus' && (
                 <div>
-                  <span className="text-[var(--text-secondary)] text-[12px] block">Location:</span>
+                  <span className="text-[var(--text-secondary)] text-[12px] block">{tx("Location:")}</span>
                   <span className="text-[var(--text-primary)]">{draft.location}</span>
                 </div>
               )}
@@ -231,12 +230,18 @@ export const ReviewComplaint: React.FC = () => {
           </div>
         )}
 
+        {draft.ticketExtracted && <section className="py-5 space-y-3">
+          <h2 className="font-semibold">{tx('Ticket details')}</h2>
+          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {TICKET_FIELDS.filter(([key]) => draft.ticketExtracted?.[key]).map(([key,label]) => <div key={key}><dt className="text-xs text-[var(--text-muted)]">{tx(label)}</dt><dd className="font-medium">{String(draft.ticketExtracted?.[key])}</dd></div>)}
+          </dl>
+        </section>}
         {/* EVIDENCE (IF PROVIDED) */}
         {draft.evidenceFiles && draft.evidenceFiles.length > 0 && (
           <div className="py-5 space-y-2">
             <div className="text-[11px] font-mono uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1.5">
               <Paperclip className="w-3.5 h-3.5 text-[var(--brand)]" />
-              <span>EVIDENCE ATTACHED</span>
+              <span>{tx("EVIDENCE ATTACHED")}</span>
             </div>
             <div className="flex flex-wrap gap-2 text-[13px]">
               {draft.evidenceFiles.map((file, idx) => (
@@ -255,42 +260,39 @@ export const ReviewComplaint: React.FC = () => {
         <div className="py-6 space-y-4">
           <div>
             <span className="text-[11px] font-mono uppercase tracking-wider text-[var(--text-muted)] block">
-              STATUS NOTIFICATIONS
-            </span>
+              {tx("STATUS NOTIFICATIONS")}</span>
             <div className="text-[14px] text-[var(--text-secondary)] mt-0.5">
-              Where should we send your tracking reference and depot action updates?
-            </div>
+              {tx("Where should we send your tracking reference and depot action updates?")}</div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
-              label="Mobile Number (Optional)"
+              label={tx("Mobile Number (Optional)")}
               type="tel"
-              placeholder="10-digit mobile number"
+              placeholder={tx("10-digit mobile number")}
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              helperText="Only used to send reference code and resolution milestones."
+              helperText={tx("Only used to send reference code and resolution milestones.")}
             />
 
             <div className="flex flex-col gap-1.5">
               <label className="text-[13px] font-medium text-[var(--text-primary)]">
-                Updates Channel
-              </label>
+                {tx("Updates Channel")}</label>
               <select
                 value={channel}
                 onChange={(e) => setChannel(e.target.value as 'whatsapp' | 'sms' | 'email')}
                 className="w-full bg-[var(--surface-primary)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded-[10px] py-2.5 px-3 text-[14px] h-[48px] focus:outline-none focus:border-[var(--brand)]"
               >
-                <option value="whatsapp">WhatsApp (Recommended)</option>
-                <option value="sms">SMS Text</option>
-                <option value="email">Email</option>
+                <option value="whatsapp">{tx("WhatsApp (Recommended)")}</option>
+                <option value="sms">{tx("SMS Text")}</option>
+                <option value="email">{tx("Email")}</option>
               </select>
             </div>
           </div>
 
           <div className="flex items-center gap-2 text-[12px] text-[var(--text-secondary)]">
             <ShieldCheck className="w-4 h-4 text-[var(--brand)] shrink-0" />
-            <span>Complainant identity is protected under public transport privacy guidelines.</span>
+            <span>{tx("Complainant identity is protected under public transport privacy guidelines.")}</span>
           </div>
         </div>
       </div>
@@ -303,13 +305,12 @@ export const ReviewComplaint: React.FC = () => {
           className="text-[14px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] inline-flex items-center gap-1 cursor-pointer order-2 sm:order-1"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Edit details</span>
+          <span>{tx("Edit details")}</span>
         </button>
 
         <div className="flex items-center gap-4 w-full sm:w-auto order-1 sm:order-2">
           <span className="text-[14px] text-[var(--text-secondary)] hidden md:inline">
-            Everything look right?
-          </span>
+            {tx("Everything look right?")}</span>
 
           <Button
             type="button"
@@ -321,7 +322,7 @@ export const ReviewComplaint: React.FC = () => {
             iconPosition="right"
             className="w-full sm:w-auto font-semibold px-8 h-[48px]"
           >
-            {isSubmitting ? 'Submitting your complaint…' : 'Submit Complaint'}
+            {isSubmitting ? tx("Submitting your complaint…") : tx("Submit Complaint")}
           </Button>
         </div>
       </div>

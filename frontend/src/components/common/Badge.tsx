@@ -1,4 +1,5 @@
 import React from 'react';
+import { useText } from '../../hooks/useText';
 import type { ComplaintStatus, PriorityLevel } from '../../types';
 
 export interface BadgeProps {
@@ -16,6 +17,7 @@ export const Badge: React.FC<BadgeProps> = ({
   priority,
   className = '',
 }) => {
+  const tx = useText();
   const getDotColor = (st?: ComplaintStatus) => {
     switch (st) {
       case 'submitted':
@@ -71,7 +73,7 @@ export const Badge: React.FC<BadgeProps> = ({
           }`}
           aria-hidden="true"
         />
-        <span>{children || getStatusLabel(status)}</span>
+        <span>{typeof children === 'string' ? tx(children) : children || tx(getStatusLabel(status))}</span>
       </span>
     );
   }
@@ -90,7 +92,7 @@ export const Badge: React.FC<BadgeProps> = ({
           }`}
           aria-hidden="true"
         />
-        <span className="capitalize">{children || `${priority} Priority`}</span>
+        <span className="capitalize">{children || tx(priority === 'urgent' ? 'Urgent priority' : 'Normal priority')}</span>
       </span>
     );
   }

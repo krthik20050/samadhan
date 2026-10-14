@@ -1,3 +1,4 @@
+import { useText } from '../hooks/useText';
 import React from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useLanguage } from '../hooks/useLanguage';
@@ -12,6 +13,7 @@ import {
 } from 'lucide-react';
 
 export const Home: React.FC = () => {
+  const tx = useText();
   const { language } = useLanguage();
   const navigate = useNavigate();
 
@@ -28,21 +30,21 @@ export const Home: React.FC = () => {
               {/* Product Context Tag */}
               <div className="inline-flex items-center gap-2 text-[12px] font-mono tracking-wider text-[var(--brand)]">
                 <span className="w-1.5 h-1.5 rounded-full bg-[var(--brand)]" />
-                <span>PUBLIC TRANSPORT GRIEVANCE SYSTEM</span>
+                <span>{tx("PUBLIC TRANSPORT GRIEVANCE SYSTEM")}</span>
               </div>
 
               {/* Primary Headline */}
               <h1 className="text-[44px] sm:text-[56px] lg:text-[64px] font-extrabold text-[var(--text-primary)] tracking-tight leading-[1.06] whitespace-pre-line font-['Plus_Jakarta_Sans']">
                 {language === 'ml'
                   ? 'പരാതിപ്പെടൂ.\nബാക്കി ഞങ്ങൾ ഏറ്റെടുക്കാം.'
-                  : 'Report it.\nWe’ll take it from there.'}
+                  : tx("Report it. We’ll take it from there.")}
               </h1>
 
               {/* Supporting Text */}
               <p className="text-[17px] sm:text-[19px] text-[var(--text-secondary)] leading-relaxed max-w-xl">
                 {language === 'ml'
                   ? 'നിമിഷങ്ങൾക്കുള്ളിൽ നിങ്ങളുടെ യാത്രാ പരാതി സമർപ്പിക്കാം. സമാധാൻ അത് വ്യക്തമായ രേഖയാക്കി ബന്ധപ്പെട്ട ഡിപ്പോയിലേക്ക് കൈമാറുന്നു, തുടർനടപടികൾ കൃത്യമായി പരിശോധിക്കാം.'
-                  : 'Report a public transport issue in seconds. SAMADHAN turns it into a structured complaint, routes it to the right depot and lets you track what happens next.'}
+                  : tx("Report a public transport issue in seconds. SAMADHAN turns it into a structured complaint, routes it to the right depot and lets you track what happens next.")}
               </p>
 
               {/* Primary & Secondary Action Pair */}
@@ -54,7 +56,7 @@ export const Home: React.FC = () => {
                     onClick={() => navigate('/file-complaint')}
                     className="font-semibold text-[15px] px-8"
                   >
-                    {language === 'ml' ? 'പരാതി നൽകുക' : 'File a Complaint'}
+                    {language === 'ml' ? 'പരാതി നൽകുക' : tx("File a Complaint")}
                   </Button>
 
                   <Button
@@ -64,53 +66,48 @@ export const Home: React.FC = () => {
                     icon={<Search className="w-4 h-4 text-[var(--text-secondary)]" />}
                     className="font-medium text-[15px]"
                   >
-                    {language === 'ml' ? 'പരാതി പരിശോധിക്കുക' : 'Track a Complaint'}
+                    {language === 'ml' ? 'പരാതി പരിശോധിക്കുക' : tx("Track a Complaint")}
                   </Button>
                 </div>
 
                 {/* Quiet Multi-Channel Secondary Links */}
                 <div className="flex flex-wrap items-center gap-3 text-[13px] pt-1">
                   <span className="text-[var(--text-secondary)] font-medium">
-                    {language === 'ml' ? 'പരാതിപ്പെടാനുള്ള വഴികൾ:' : 'Report another way →'}
+                    {language === 'ml' ? 'പരാതിപ്പെടാനുള്ള വഴികൾ:' : tx("Report another way →")}
                   </span>
                   <Link
                     to="/file-complaint"
                     className="font-medium text-[var(--brand)] hover:underline"
                   >
-                    Web
-                  </Link>
+                    {tx("Web")}</Link>
                   <span className="text-[var(--border-standard)]">·</span>
                   <Link
                     to="/file-complaint?mode=voice"
                     className="font-medium text-[var(--brand)] hover:underline inline-flex items-center gap-1"
                   >
                     <Mic className="w-3.5 h-3.5" />
-                    <span>Voice</span>
+                    <span>{tx("Voice")}</span>
                   </Link>
                   <span className="text-[var(--border-standard)]">·</span>
                   <a
                     href="#ways-to-report"
                     className="font-medium text-[var(--brand)] hover:underline"
                   >
-                    WhatsApp
-                  </a>
-                  <span className="text-[var(--text-muted)] text-[12px] hidden sm:inline">— Different channels. One complaint workflow.</span>
+                    {tx("WhatsApp")}</a>
+                  <span className="text-[var(--text-muted)] text-[12px] hidden sm:inline">{tx("— Different channels. One complaint workflow.")}</span>
                 </div>
               </div>
 
               {/* 3 Core Guarantees: Minimal Row with Thin Divider */}
               <div className="pt-8 border-t border-[var(--border-standard)] flex flex-wrap items-center gap-6 text-[13px] text-[var(--text-secondary)]">
                 <div>
-                  <span className="font-semibold text-[var(--text-primary)]">Under 60s</span> intake
-                </div>
+                  <span className="font-semibold text-[var(--text-primary)]">{tx("Under 60s")}</span> {tx("intake")}</div>
                 <span className="text-[var(--border-standard)]">•</span>
                 <div>
-                  <span className="font-semibold text-[var(--text-primary)]">Route-matched</span> depot routing
-                </div>
+                  <span className="font-semibold text-[var(--text-primary)]">{tx("Route-matched")}</span> {tx("depot routing")}</div>
                 <span className="text-[var(--border-standard)]">•</span>
                 <div>
-                  <span className="font-semibold text-[var(--text-primary)]">Time-bound</span> resolution SLA
-                </div>
+                  <span className="font-semibold text-[var(--text-primary)]">{tx("Time-bound")}</span> {tx("resolution SLA")}</div>
               </div>
             </div>
 
@@ -119,34 +116,34 @@ export const Home: React.FC = () => {
               <div className="text-[11px] font-mono uppercase tracking-wider text-[var(--text-muted)] flex items-center justify-between">
                 <span className="flex items-center gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-[var(--brand)]" />
-                  <span>OPERATIONAL WORKFLOW</span>
+                  <span>{tx("OPERATIONAL WORKFLOW")}</span>
                 </span>
-                <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">ILLUSTRATIVE WORKFLOW</span>
+                <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">{tx("ILLUSTRATIVE WORKFLOW")}</span>
               </div>
 
               <div className="space-y-4 font-mono text-[13px]">
                 <div className="flex items-baseline justify-between border-b border-[var(--border-standard)] pb-3">
-                  <span className="font-bold text-[var(--brand)]">01 / REPORT</span>
-                  <span className="text-[var(--text-secondary)] font-sans">Web, Voice, or WhatsApp</span>
+                  <span className="font-bold text-[var(--brand)]">{tx("01 / REPORT")}</span>
+                  <span className="text-[var(--text-secondary)] font-sans">{tx("Web, Voice, or WhatsApp")}</span>
                 </div>
                 <div className="flex items-baseline justify-between border-b border-[var(--border-standard)] pb-3">
-                  <span className="font-bold text-[var(--brand)]">02 / ROUTE</span>
-                  <span className="text-[var(--text-secondary)] font-sans">Official operating depot assignment</span>
+                  <span className="font-bold text-[var(--brand)]">{tx("02 / ROUTE")}</span>
+                  <span className="text-[var(--text-secondary)] font-sans">{tx("Official operating depot assignment")}</span>
                 </div>
                 <div className="flex items-baseline justify-between border-b border-[var(--border-standard)] pb-3">
-                  <span className="font-bold text-[var(--brand)]">03 / TRACK</span>
-                  <span className="text-[var(--text-secondary)] font-sans">Real-time status reference</span>
+                  <span className="font-bold text-[var(--brand)]">{tx("03 / TRACK")}</span>
+                  <span className="text-[var(--text-secondary)] font-sans">{tx("Real-time status reference")}</span>
                 </div>
                 <div className="flex items-baseline justify-between pb-1">
-                  <span className="font-bold text-[var(--brand)]">04 / RESOLVE</span>
-                  <span className="text-[var(--text-secondary)] font-sans">Time-bound citizen charter closure</span>
+                  <span className="font-bold text-[var(--brand)]">{tx("04 / RESOLVE")}</span>
+                  <span className="text-[var(--text-secondary)] font-sans">{tx("Time-bound citizen charter closure")}</span>
                 </div>
               </div>
 
               <div className="pt-2 text-[12px] text-[var(--text-muted)] font-mono flex items-center justify-between border-t border-[var(--border-subtle)]">
-                <span>Different channels. One workflow.</span>
+                <span>{tx("Different channels. One workflow.")}</span>
                 <Link to="/track" className="text-[var(--brand)] hover:underline inline-flex items-center gap-1">
-                  <span>Track status</span>
+                  <span>{tx("Track status")}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
               </div>
@@ -162,14 +159,11 @@ export const Home: React.FC = () => {
         <div className="app-container">
           <div className="max-w-2xl text-left mb-16">
             <span className="text-[12px] font-mono font-bold uppercase tracking-wider text-[var(--brand)]">
-              HOW IT WORKS
-            </span>
+              {tx("HOW IT WORKS")}</span>
             <h2 className="text-[32px] sm:text-[40px] font-extrabold text-[var(--text-primary)] tracking-tight mt-1.5 font-['Plus_Jakarta_Sans']">
-              Report. Route. Track. Resolve.
-            </h2>
+              {tx("Report. Route. Track. Resolve.")}</h2>
             <p className="text-[16px] text-[var(--text-secondary)] mt-2 leading-relaxed">
-              Every passenger grievance moves through a transparent, time-bound resolution cycle.
-            </p>
+              {tx("Every passenger grievance moves through a transparent, time-bound resolution cycle.")}</p>
           </div>
 
           {/* 4-Step Editorial Process (Thin Separators, Large Numbers, NO Giant Boxes) */}
@@ -180,14 +174,11 @@ export const Home: React.FC = () => {
                 01
               </span>
               <span className="text-[12px] font-mono font-bold tracking-wider text-[var(--text-muted)] block uppercase">
-                REPORT
-              </span>
+                {tx("REPORT")}</span>
               <h3 className="text-[18px] font-bold text-[var(--text-primary)]">
-                Tell us what happened
-              </h3>
+                {tx("Tell us what happened")}</h3>
               <p className="text-[14px] text-[var(--text-secondary)] leading-relaxed">
-                Describe the route, stop, or vehicle issue via web, voice, or WhatsApp in under 60 seconds.
-              </p>
+                {tx("Describe the route, stop, or vehicle issue via web, voice, or WhatsApp in under 60 seconds.")}</p>
             </div>
 
             {/* Step 02 */}
@@ -196,14 +187,11 @@ export const Home: React.FC = () => {
                 02
               </span>
               <span className="text-[12px] font-mono font-bold tracking-wider text-[var(--text-muted)] block uppercase">
-                ROUTE
-              </span>
+                {tx("ROUTE")}</span>
               <h3 className="text-[18px] font-bold text-[var(--text-primary)]">
-                Direct depot assignment
-              </h3>
+                {tx("Direct depot assignment")}</h3>
               <p className="text-[14px] text-[var(--text-secondary)] leading-relaxed">
-                SAMADHAN matches the route schedule and assigns responsibility to the operating depot immediately.
-              </p>
+                {tx("SAMADHAN matches the route schedule and assigns responsibility to the operating depot immediately.")}</p>
             </div>
 
             {/* Step 03 */}
@@ -212,14 +200,11 @@ export const Home: React.FC = () => {
                 03
               </span>
               <span className="text-[12px] font-mono font-bold tracking-wider text-[var(--text-muted)] block uppercase">
-                TRACK
-              </span>
+                {tx("TRACK")}</span>
               <h3 className="text-[18px] font-bold text-[var(--text-primary)]">
-                Follow complaint status
-              </h3>
+                {tx("Follow complaint status")}</h3>
               <p className="text-[14px] text-[var(--text-secondary)] leading-relaxed">
-                Follow real-time progress from submission to investigation with your reference code.
-              </p>
+                {tx("Follow real-time progress from submission to investigation with your reference code.")}</p>
             </div>
 
             {/* Step 04 */}
@@ -228,14 +213,11 @@ export const Home: React.FC = () => {
                 04
               </span>
               <span className="text-[12px] font-mono font-bold tracking-wider text-[var(--text-muted)] block uppercase">
-                RESOLVE
-              </span>
+                {tx("RESOLVE")}</span>
               <h3 className="text-[18px] font-bold text-[var(--text-primary)]">
-                See what happens next
-              </h3>
+                {tx("See what happens next")}</h3>
               <p className="text-[14px] text-[var(--text-secondary)] leading-relaxed">
-                Receive time-bound updates as depot officers complete corrective action on the vehicle or crew.
-              </p>
+                {tx("Receive time-bound updates as depot officers complete corrective action on the vehicle or crew.")}</p>
             </div>
           </div>
         </div>
@@ -249,14 +231,11 @@ export const Home: React.FC = () => {
           {/* Section Header */}
           <div className="max-w-2xl text-left mb-16">
             <span className="text-[12px] font-mono font-bold uppercase tracking-wider text-[var(--brand)]">
-              CHANNELS
-            </span>
+              {tx("CHANNELS")}</span>
             <h2 className="text-[32px] sm:text-[40px] font-extrabold text-[var(--text-primary)] tracking-tight mt-1.5 font-['Plus_Jakarta_Sans']">
-              Report your way.
-            </h2>
+              {tx("Report your way.")}</h2>
             <p className="text-[16px] text-[var(--text-secondary)] mt-2 leading-relaxed">
-              Different channels. One complaint workflow. Choose the entry point most convenient for your journey.
-            </p>
+              {tx("Different channels. One complaint workflow. Choose the entry point most convenient for your journey.")}</p>
           </div>
 
           {/* 3 Clean Editorial Columns with Horizontal Separator */}
@@ -268,18 +247,17 @@ export const Home: React.FC = () => {
                   <Globe className="w-4 h-4" />
                 </div>
                 <div>
-                  <span className="text-[11px] font-mono uppercase text-[var(--text-muted)] block">WEB</span>
-                  <h3 className="text-[18px] font-bold text-[var(--text-primary)]">Structured Form</h3>
+                  <span className="text-[11px] font-mono uppercase text-[var(--text-muted)] block">{tx("WEB")}</span>
+                  <h3 className="text-[18px] font-bold text-[var(--text-primary)]">{tx("Structured Form")}</h3>
                 </div>
               </div>
               <p className="text-[14px] text-[var(--text-secondary)] leading-relaxed">
-                Quick structured complaint form. Select frequently travelled corridors, bus numbers, and attach photos or tickets.
-              </p>
+                {tx("Quick structured complaint form. Select frequently travelled corridors, bus numbers, and attach photos or tickets.")}</p>
               <Link
                 to="/file-complaint?mode=type"
                 className="text-[13px] font-medium text-[var(--brand)] hover:underline inline-flex items-center gap-1.5"
               >
-                <span>File online</span>
+                <span>{tx("File online")}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>
@@ -291,18 +269,17 @@ export const Home: React.FC = () => {
                   <Mic className="w-4 h-4" />
                 </div>
                 <div>
-                  <span className="text-[11px] font-mono uppercase text-[var(--text-muted)] block">VOICE</span>
-                  <h3 className="text-[18px] font-bold text-[var(--text-primary)]">Speak Naturally</h3>
+                  <span className="text-[11px] font-mono uppercase text-[var(--text-muted)] block">{tx("VOICE")}</span>
+                  <h3 className="text-[18px] font-bold text-[var(--text-primary)]">{tx("Speak Naturally")}</h3>
                 </div>
               </div>
               <p className="text-[14px] text-[var(--text-secondary)] leading-relaxed">
-                Speak naturally in Malayalam or English. Designed for passengers on moving buses and elderly commuters who prefer not to type.
-              </p>
+                {tx("Speak naturally in Malayalam or English. Designed for passengers on moving buses and elderly commuters who prefer not to type.")}</p>
               <Link
                 to="/file-complaint?mode=voice"
                 className="text-[13px] font-medium text-[var(--brand)] hover:underline inline-flex items-center gap-1.5"
               >
-                <span>Speak complaint</span>
+                <span>{tx("Speak complaint")}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>
@@ -314,18 +291,17 @@ export const Home: React.FC = () => {
                   <MessageSquare className="w-4 h-4" />
                 </div>
                 <div>
-                  <span className="text-[11px] font-mono uppercase text-[var(--text-muted)] block">WHATSAPP</span>
-                  <h3 className="text-[18px] font-bold text-[var(--text-primary)]">Familiar Channel</h3>
+                  <span className="text-[11px] font-mono uppercase text-[var(--text-muted)] block">{tx("WHATSAPP")}</span>
+                  <h3 className="text-[18px] font-bold text-[var(--text-primary)]">{tx("Familiar Channel")}</h3>
                 </div>
               </div>
               <p className="text-[14px] text-[var(--text-secondary)] leading-relaxed">
-                Report issues directly inside your everyday chat app. Sends reference codes and depot milestone alerts straight to WhatsApp.
-              </p>
+                {tx("Report issues directly inside your everyday chat app. Sends reference codes and depot milestone alerts straight to WhatsApp.")}</p>
               <Link
                 to="/file-complaint"
                 className="text-[13px] font-medium text-[var(--brand)] hover:underline inline-flex items-center gap-1.5"
               >
-                <span>Select channel in intake</span>
+                <span>{tx("Select channel in intake")}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>
@@ -342,20 +318,17 @@ export const Home: React.FC = () => {
             {/* Left Narrative */}
             <div className="lg:col-span-6 space-y-4">
               <span className="text-[12px] font-mono font-bold uppercase tracking-wider text-[var(--brand)]">
-                ACCOUNTABILITY GUARANTEE
-              </span>
+                {tx("ACCOUNTABILITY GUARANTEE")}</span>
               <h2 className="text-[30px] sm:text-[36px] font-extrabold text-[var(--text-primary)] tracking-tight leading-snug font-['Plus_Jakarta_Sans']">
-                Automated Depot Escalation Hierarchy
-              </h2>
+                {tx("Automated Depot Escalation Hierarchy")}</h2>
               <p className="text-[15px] text-[var(--text-secondary)] leading-relaxed">
-                SAMADHAN ensures grievances do not sit unaddressed. If an operating depot does not resolve the ticket within the target window, it automatically escalates up the supervisory chain.
-              </p>
+                {tx("SAMADHAN ensures grievances do not sit unaddressed. If an operating depot does not resolve the ticket within the target window, it automatically escalates up the supervisory chain.")}</p>
               <div className="pt-2">
                 <Link
                   to="/public"
                   className="inline-flex items-center gap-2 text-[14px] font-medium text-[var(--brand)] hover:underline"
                 >
-                  <span>Learn about public transparency reporting</span>
+                  <span>{tx("Learn about public transparency reporting")}</span>
                   <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
@@ -368,11 +341,9 @@ export const Home: React.FC = () => {
                   <span className="font-mono font-bold text-[12px] text-[var(--brand)]">T1</span>
                   <div>
                     <h4 className="text-[14px] font-bold text-[var(--text-primary)]">
-                      Operating Depot Officer
-                    </h4>
+                      {tx("Operating Depot Officer")}</h4>
                     <p className="text-[12px] text-[var(--text-secondary)]">
-                      Initial intake, verification & corrective action
-                    </p>
+                      {tx("Initial intake, verification & corrective action")}</p>
                   </div>
                 </div>
                 <span className="text-[11px] font-mono text-[var(--text-secondary)]">0 – 12h</span>
@@ -383,11 +354,9 @@ export const Home: React.FC = () => {
                   <span className="font-mono font-bold text-[12px] text-[var(--brand)]">T2</span>
                   <div>
                     <h4 className="text-[14px] font-bold text-[var(--text-primary)]">
-                      District Transport Officer (DTO)
-                    </h4>
+                      {tx("District Transport Officer (DTO)")}</h4>
                     <p className="text-[12px] text-[var(--text-secondary)]">
-                      Automated escalation on depot SLA breach
-                    </p>
+                      {tx("Automated escalation on depot SLA breach")}</p>
                   </div>
                 </div>
                 <span className="text-[11px] font-mono text-[var(--text-secondary)]">12 – 24h</span>
@@ -398,11 +367,9 @@ export const Home: React.FC = () => {
                   <span className="font-mono font-bold text-[12px] text-[var(--brand)]">T3</span>
                   <div>
                     <h4 className="text-[14px] font-bold text-[var(--text-primary)]">
-                      Zonal Executive Director
-                    </h4>
+                      {tx("Zonal Executive Director")}</h4>
                     <p className="text-[12px] text-[var(--text-secondary)]">
-                      Critical policy & fleet operations review
-                    </p>
+                      {tx("Critical policy & fleet operations review")}</p>
                   </div>
                 </div>
                 <span className="text-[11px] font-mono text-[var(--text-secondary)]">24h+</span>
@@ -421,14 +388,12 @@ export const Home: React.FC = () => {
             <div className="space-y-2 max-w-xl">
               <div className="flex items-center gap-2 text-[12px] font-mono uppercase tracking-wider text-[var(--semantic-success)]">
                 <ShieldCheck className="w-4 h-4" />
-                <span>CONFIDENTIAL & DIGNIFIED</span>
+                <span>{tx("CONFIDENTIAL & DIGNIFIED")}</span>
               </div>
               <h3 className="text-[22px] sm:text-[26px] font-bold text-[var(--text-primary)] font-['Plus_Jakarta_Sans']">
-                Public service, accountable by design.
-              </h3>
+                {tx("Public service, accountable by design.")}</h3>
               <p className="text-[14px] text-[var(--text-secondary)] leading-relaxed">
-                Personal contact details are restricted to grievance tracking and never exposed publicly. Public oversight reports reflect verified depot resolution metrics.
-              </p>
+                {tx("Personal contact details are restricted to grievance tracking and never exposed publicly. Public oversight reports reflect verified depot resolution metrics.")}</p>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto shrink-0">
@@ -438,16 +403,14 @@ export const Home: React.FC = () => {
                 onClick={() => navigate('/file-complaint')}
                 className="w-full sm:w-auto font-medium"
               >
-                File a Complaint
-              </Button>
+                {tx("File a Complaint")}</Button>
               <Button
                 variant="secondary"
                 size="md"
                 onClick={() => navigate('/public')}
                 className="w-full sm:w-auto"
               >
-                Public Insights
-              </Button>
+                {tx("Public Insights")}</Button>
             </div>
           </div>
         </div>

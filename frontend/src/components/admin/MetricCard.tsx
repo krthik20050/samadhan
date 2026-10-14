@@ -1,4 +1,5 @@
 import React from 'react';
+import { useText } from '../../hooks/useText';
 import { Card } from '../common/Card';
 
 interface MetricCardProps {
@@ -21,6 +22,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   trend,
   variant = 'default',
 }) => {
+  const tx = useText();
   const borderStyles = {
     default: 'border-[var(--border-standard)] bg-[var(--surface-primary)]',
     danger: 'border-[var(--semantic-error)]/40 bg-[var(--surface-primary)]',
@@ -40,7 +42,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
       <div className="flex items-start justify-between">
         <div>
           <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-[var(--text-muted)]">
-            {title}
+            {tx(title)}
           </span>
           <div className={`text-3xl sm:text-4xl font-extrabold mt-1 tracking-tight ${textStyles[variant]}`}>
             {value}
@@ -55,7 +57,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
 
       {(subtitle || trend) && (
         <div className="mt-3 pt-2.5 border-t border-[var(--border-subtle)] flex items-center justify-between text-[12px]">
-          {subtitle && <span className="text-[var(--text-secondary)]">{subtitle}</span>}
+          {subtitle && <span className="text-[var(--text-secondary)]">{tx(subtitle)}</span>}
           {trend && (
             <span
               className={`font-mono font-medium ${

@@ -117,6 +117,12 @@ html {
 }
 
 /* Reduced motion compliance */
+@keyframes ticket-fill {
+  from { transform: translateY(4px); background-color: #d8ff3e40; }
+  to { transform: translateY(0); background-color: transparent; }
+}
+.ticket-field-filled { animation: ticket-fill 650ms ease-out; border-radius: 10px; }
+html[lang="ml"] body { font-family: 'Noto Sans Malayalam', sans-serif; }
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after {
     animation-duration: 0.01ms !important;

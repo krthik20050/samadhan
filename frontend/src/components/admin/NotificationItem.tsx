@@ -1,3 +1,4 @@
+import { useText } from '../../hooks/useText';
 import React from 'react';
 import type { NotificationLogItem } from '../../types';
 import { MessageSquare, Mail, Phone, CheckCheck, Clock, AlertCircle } from 'lucide-react';
@@ -7,6 +8,7 @@ interface NotificationItemProps {
 }
 
 export const NotificationItem: React.FC<NotificationItemProps> = ({ item }) => {
+  const tx = useText();
   const getChannelIcon = (channel: NotificationLogItem['channel']) => {
     switch (channel) {
       case 'whatsapp':
@@ -23,32 +25,27 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ item }) => {
       case 'read':
         return (
           <span className="inline-flex items-center gap-1 text-[11px] font-mono font-medium text-[var(--brand)] bg-[var(--surface-secondary)] px-2 py-0.5 rounded-[4px]">
-            <CheckCheck className="w-3 h-3" /> Read
-          </span>
+            <CheckCheck className="w-3 h-3" /> {tx("Read")}</span>
         );
       case 'delivered':
         return (
           <span className="inline-flex items-center gap-1 text-[11px] font-mono font-medium text-[var(--semantic-success)] bg-[var(--surface-secondary)] px-2 py-0.5 rounded-[4px]">
-            <CheckCheck className="w-3 h-3" /> Delivered
-          </span>
+            <CheckCheck className="w-3 h-3" /> {tx("Delivered")}</span>
         );
       case 'sent':
         return (
           <span className="inline-flex items-center gap-1 text-[11px] font-mono font-medium text-[var(--semantic-info)] bg-[var(--surface-secondary)] px-2 py-0.5 rounded-[4px]">
-            <Clock className="w-3 h-3" /> Sent
-          </span>
+            <Clock className="w-3 h-3" /> {tx("Sent")}</span>
         );
       case 'queued':
         return (
           <span className="inline-flex items-center gap-1 text-[11px] font-mono font-medium text-[var(--semantic-warning)] bg-[var(--surface-secondary)] px-2 py-0.5 rounded-[4px]">
-            <Clock className="w-3 h-3" /> Queued
-          </span>
+            <Clock className="w-3 h-3" /> {tx("Queued")}</span>
         );
       case 'failed':
         return (
           <span className="inline-flex items-center gap-1 text-[11px] font-mono font-medium text-[var(--semantic-error)] bg-[var(--surface-secondary)] px-2 py-0.5 rounded-[4px]">
-            <AlertCircle className="w-3 h-3" /> Failed
-          </span>
+            <AlertCircle className="w-3 h-3" /> {tx("Failed")}</span>
         );
     }
   };
@@ -66,11 +63,11 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ item }) => {
                 {item.subject}
               </span>
               <span className="text-[10px] uppercase font-mono font-bold text-[var(--text-muted)] px-1.5 py-0.2 bg-[var(--bg-primary)] border border-[var(--border-standard)] rounded-[4px]">
-                {item.channel}
+                {tx(item.channel)}
               </span>
             </div>
             <div className="text-[12px] text-[var(--text-secondary)] mt-0.5">
-              To: <span className="font-mono">{item.recipientAnonymized}</span> • Ref:{' '}
+              {tx("To:")}<span className="font-mono">{item.recipientAnonymized}</span> {tx("• Ref:")}{' '}
               <span className="font-mono font-medium text-[var(--text-primary)]">
                 {item.complaintRef}
               </span>
@@ -81,7 +78,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ item }) => {
         <div className="flex items-center gap-2">
           {getStatusBadge(item.status)}
           <time className="text-[11px] font-mono text-[var(--text-muted)]">
-            {item.timestamp ? item.timestamp.substring(11, 16) : 'Just now'}
+            {item.timestamp ? item.timestamp.substring(11, 16) : tx("Just now")}
           </time>
         </div>
       </div>

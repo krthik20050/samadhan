@@ -1,3 +1,4 @@
+import { useText } from '../../hooks/useText';
 import React from 'react';
 import { Navigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -5,6 +6,7 @@ import { ShieldAlert, ArrowLeft, LogOut } from 'lucide-react';
 import { Button } from '../common/Button';
 
 export const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
+  const tx = useText();
   const { isAuthenticated, isAdmin, user, logout, isLoading } = useAuth();
   const location = useLocation();
 
@@ -13,7 +15,7 @@ export const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({ chi
       <div className="min-h-screen bg-[#F7F8F5] flex items-center justify-center p-6">
         <div className="text-center space-y-3">
           <div className="w-10 h-10 border-3 border-[#0F5C4D] border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-sm font-semibold text-[#5E6964]">Verifying operational credentials...</p>
+          <p className="text-sm font-semibold text-[#5E6964]">{tx("Verifying operational credentials...")}</p>
         </div>
       </div>
     );
@@ -35,27 +37,22 @@ export const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({ chi
 
           <div className="space-y-2">
             <span className="text-xs font-bold uppercase tracking-wider text-[#B64242] bg-[#B64242]/10 px-2.5 py-1 rounded">
-              Depot Access Restricted
-            </span>
+              {tx("Depot Access Restricted")}</span>
             <h2 className="text-2xl font-extrabold text-[#10201C]">
-              Depot Staff Privilege Required
-            </h2>
+              {tx("Depot Staff Privilege Required")}</h2>
             <p className="text-sm text-[#5E6964] leading-relaxed">
-              You are signed in as <strong className="text-[#10201C]">{user?.name}</strong> (Passenger Account). Depot operational registries and escalation desks require an authorized Depot Officer account.
-            </p>
+              {tx("You are signed in as")}<strong className="text-[#10201C]">{user?.name}</strong> {tx("(Passenger Account). Depot operational registries and escalation desks require an authorized Depot Officer account.")}</p>
           </div>
 
           <div className="pt-2 space-y-3">
             <Link to="/login" onClick={logout} className="block">
               <Button variant="primary" size="md" fullWidth icon={<LogOut className="w-4 h-4" />}>
-                Sign In with Depot Credentials
-              </Button>
+                {tx("Sign In with Depot Credentials")}</Button>
             </Link>
 
             <Link to="/" className="block">
               <Button variant="secondary" size="md" fullWidth icon={<ArrowLeft className="w-4 h-4" />}>
-                Return to Passenger Portal
-              </Button>
+                {tx("Return to Passenger Portal")}</Button>
             </Link>
           </div>
         </div>

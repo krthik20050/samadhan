@@ -1,3 +1,4 @@
+import { useText } from '../hooks/useText';
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useAuth as useClerkAuth, SignInButton, UserButton } from '@clerk/react';
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 
 function StatusDot({ status }: { status: string }) {
+  const tx = useText();
   const map: Record<string, string> = {
     submitted: 'bg-[#8B908B]',
     needs_triage: 'bg-[#8B908B]',
@@ -31,7 +33,7 @@ function StatusDot({ status }: { status: string }) {
   return (
     <span className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[#171A19] shrink-0">
       <span className={`w-2 h-2 rounded-full shrink-0 ${map[status] ?? 'bg-[#8B908B]'}`} />
-      {label}
+      {tx(label)}
     </span>
   );
 }
@@ -83,6 +85,7 @@ function StatCard({
   value: number;
   tone?: 'warning' | 'danger' | 'success';
 }) {
+  const tx = useText();
   const toneClass =
     tone === 'danger'
       ? 'text-[#B34747]'
@@ -95,7 +98,7 @@ function StatCard({
     <div className="p-4 rounded-[10px] bg-[var(--surface-primary)] border border-[var(--border-standard)]">
       <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold uppercase tracking-wider text-[var(--text-muted)]">
         {icon}
-        {label}
+        {tx(label)}
       </div>
       <p className={`mt-1.5 text-2xl font-extrabold font-['Plus_Jakarta_Sans'] ${toneClass}`}>
         {value}
@@ -105,6 +108,7 @@ function StatCard({
 }
 
 export const MyAccount: React.FC = () => {
+  const tx = useText();
   const { isSignedIn, isLoaded } = clerkEnabled ? useClerkAuth() : { isSignedIn: false, isLoaded: true };
   const [searchParams, setSearchParams] = useSearchParams();
   const [chatId, setChatId] = useState<string | null>(getStoredChatId());
@@ -207,12 +211,12 @@ export const MyAccount: React.FC = () => {
       <div className="max-w-3xl mx-auto py-10 px-4">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-extrabold tracking-tight">My Account</h1>
+            <h1 className="text-2xl font-extrabold tracking-tight">{tx("My Account")}</h1>
             <p className="mt-1 text-[13px] text-[var(--text-secondary)]">
               {p?.display_name || 'Passenger'}
               {p?.email ? ` · ${p.email}` : ''}
               {p?.telegram_chat_id ? ` · Telegram linked (${p.telegram_chat_id})` : ''}
-              {' · '}Member since{' '}
+              {' · '}{tx("Member since")}{' '}
               {p?.member_since ? new Date(p.member_since).toLocaleDateString() : '—'}
             </p>
           </div>
@@ -221,40 +225,36 @@ export const MyAccount: React.FC = () => {
 
         {error && (
           <p className="mt-4 text-sm text-red-600" role="alert">
-            {error}
+            {tx(error)}
           </p>
         )}
 
         {/* Stats */}
         <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <StatCard icon={<FileText className="w-3.5 h-3.5" />} label="Requests" value={s?.total_filed ?? 0} />
-          <StatCard icon={<Clock className="w-3.5 h-3.5" />} label="Open" value={s?.open ?? 0} tone="warning" />
-          <StatCard icon={<CheckCircle2 className="w-3.5 h-3.5" />} label="Resolved" value={s?.resolved ?? 0} tone="success" />
-          <StatCard icon={<Ticket className="w-3.5 h-3.5" />} label="Tickets" value={s?.ticket_receipts ?? 0} />
-          <StatCard icon={<MapPin className="w-3.5 h-3.5" />} label="Trips" value={s?.trips_saved ?? 0} />
-          <StatCard icon={<AlertTriangle className="w-3.5 h-3.5" />} label="SLA breached" value={s?.sla_breached ?? 0} tone="danger" />
+          <StatCard icon={<FileText className="w-3.5 h-3.5" />} label={tx("Requests")} value={s?.total_filed ?? 0} />
+          <StatCard icon={<Clock className="w-3.5 h-3.5" />} label={tx("Open")} value={s?.open ?? 0} tone="warning" />
+          <StatCard icon={<CheckCircle2 className="w-3.5 h-3.5" />} label={tx("Resolved")} value={s?.resolved ?? 0} tone="success" />
+          <StatCard icon={<Ticket className="w-3.5 h-3.5" />} label={tx("Tickets")} value={s?.ticket_receipts ?? 0} />
+          <StatCard icon={<MapPin className="w-3.5 h-3.5" />} label={tx("Trips")} value={s?.trips_saved ?? 0} />
+          <StatCard icon={<AlertTriangle className="w-3.5 h-3.5" />} label={tx("SLA breached")} value={s?.sla_breached ?? 0} tone="danger" />
         </div>
         <p className="mt-2 text-[11px] text-[var(--text-muted)]">
-          “Tickets” counts filed complaints that carried a readable ticket photo — KSRTC exposes no
-          booking feed, so this is your ticket-verified history, not purchases.
-        </p>
+          {tx("“Tickets” counts filed complaints that carried a readable ticket photo — KSRTC exposes no booking feed, so this is your ticket-verified history, not purchases.")}</p>
 
         {/* Recent requests with reference IDs */}
         <section className="mt-8">
           <h2 className="text-[13px] font-mono font-bold tracking-wider text-[var(--brand)] uppercase">
-            My reference IDs &amp; requests ({complaints.length})
+            {tx("My reference IDs & requests (")}{complaints.length})
           </h2>
           {loading && !complaints.length ? (
-            <p className="mt-3 text-sm text-[var(--text-secondary)]">Loading…</p>
+            <p className="mt-3 text-sm text-[var(--text-secondary)]">{tx("Loading…")}</p>
           ) : complaints.length === 0 ? (
             <div className="mt-3 p-4 rounded-[8px] bg-[var(--surface-primary)] border border-[var(--border-standard)]">
               <p className="text-sm text-[var(--text-secondary)]">
-                Nothing yet. File your first complaint —{' '}
+                {tx("Nothing yet. File your first complaint —")}{' '}
                 <Link to="/file-complaint" className="text-[var(--brand)] font-semibold hover:underline">
-                  from the web form
-                </Link>{' '}
-                or via the Telegram bot. Filed while signed in, they appear here automatically.
-              </p>
+                  {tx("from the web form")}</Link>{' '}
+                {tx("or via the Telegram bot. Filed while signed in, they appear here automatically.")}</p>
             </div>
           ) : (
             <div className="mt-3 space-y-2">
@@ -266,9 +266,9 @@ export const MyAccount: React.FC = () => {
                   <div className="min-w-0">
                     <ReferenceNumber value={c.reference_id} />
                     <p className="text-[12px] text-[var(--text-secondary)] mt-0.5">
-                      {c.category.replace(/_/g, ' ')}
+                      {tx(c.category.replace(/_/g, ' '))}
                       {c.depot ? ` · ${c.depot} depot` : ''}
-                      {c.has_ticket ? ' · 🎫 ticket' : ''} · {new Date(c.created_at).toLocaleString()}
+                      {c.has_ticket ? tx("· 🎫 ticket") : ''} · {new Date(c.created_at).toLocaleString()}
                     </p>
                   </div>
                   <StatusDot status={c.status} />
@@ -281,14 +281,13 @@ export const MyAccount: React.FC = () => {
         {/* Saved trips */}
         <section className="mt-8">
           <h2 className="text-[13px] font-mono font-bold tracking-wider text-[var(--brand)] uppercase">
-            Saved trips ({trips.length})
+            {tx("Saved trips (")}{trips.length})
           </h2>
           {loading && !trips.length ? (
-            <p className="mt-3 text-sm text-[var(--text-secondary)]">Loading…</p>
+            <p className="mt-3 text-sm text-[var(--text-secondary)]">{tx("Loading…")}</p>
           ) : trips.length === 0 ? (
             <p className="mt-3 text-sm text-[var(--text-secondary)]">
-              No trips yet — file a complaint in the bot and your route is remembered here.
-            </p>
+              {tx("No trips yet — file a complaint in the bot and your route is remembered here.")}</p>
           ) : (
             <div className="mt-3 space-y-2">
               {trips.map((t, i) => (
@@ -299,10 +298,10 @@ export const MyAccount: React.FC = () => {
                   <div>
                     <p className="font-bold text-[14px]">🚌 {t.route_label}</p>
                     {t.bus_number && (
-                      <p className="text-[12px] text-[var(--text-secondary)]">Bus {t.bus_number}</p>
+                      <p className="text-[12px] text-[var(--text-secondary)]">{tx("Bus")}{t.bus_number}</p>
                     )}
                   </div>
-                  <span className="text-[12px] text-[var(--text-secondary)]">{t.use_count}× used</span>
+                  <span className="text-[12px] text-[var(--text-secondary)]">{t.use_count}{tx("× used")}</span>
                 </div>
               ))}
             </div>
@@ -316,24 +315,20 @@ export const MyAccount: React.FC = () => {
   if (clerkEnabled) {
     return (
       <div className="max-w-xl mx-auto py-10 px-4 text-center">
-        <h1 className="text-2xl font-extrabold tracking-tight">My Account</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight">{tx("My Account")}</h1>
         <p className="mt-3 text-[15px] text-[var(--text-secondary)] leading-relaxed">
-          Sign in to see every request you have filed, your reference IDs, their live status, and
-          your saved trips — including anything filed through the Telegram bot on the same phone
-          number.
-        </p>
+          {tx("Sign in to see every request you have filed, your reference IDs, their live status, and your saved trips — including anything filed through the Telegram bot on the same phone number.")}</p>
         {!isLoaded ? (
-          <p className="mt-6 text-sm text-[var(--text-secondary)]">Loading sign-in…</p>
+          <p className="mt-6 text-sm text-[var(--text-secondary)]">{tx("Loading sign-in…")}</p>
         ) : (
           <div className="mt-6 flex justify-center [&>div]:w-full [&_button]:w-full">
             <SignInButton mode="modal" fallbackRedirectUrl="/account">
               <Button variant="primary" size="lg" icon={<LogIn className="w-4 h-4" />}>
-                Sign in with Google or Email
-              </Button>
+                {tx("Sign in with Google or Email")}</Button>
             </SignInButton>
           </div>
         )}
-        {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+        {error && <p className="mt-4 text-sm text-red-600">{tx(error)}</p>}
       </div>
     );
   }
@@ -342,25 +337,22 @@ export const MyAccount: React.FC = () => {
   if (!chatId) {
     return (
       <div className="max-w-xl mx-auto py-10 px-4">
-        <h1 className="text-2xl font-extrabold tracking-tight">My Account</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight">{tx("My Account")}</h1>
         <p className="mt-3 text-[15px] text-[var(--text-secondary)] leading-relaxed">
-          Link your account in the SAMADHAN Telegram bot: send <code className="font-mono bg-[var(--surface-primary)] px-1 rounded">/link</code> to
-          {' '}@esamadhanbot and share your number in one tap. Then open the bot's
-          <b> “🌐 My account (web)” </b> button — it brings you here with your trips loaded.
-        </p>
+          {tx("Link your account in the SAMADHAN Telegram bot: send")}<code className="font-mono bg-[var(--surface-primary)] px-1 rounded">/link</code> {tx("to")}{' '}{tx("@esamadhanbot and share your number in one tap. Then open the bot's")}<b> {tx("“🌐 My account (web)”")}</b> {tx("button — it brings you here with your trips loaded.")}</p>
         <div className="mt-6 p-4 rounded-[8px] bg-[var(--surface-primary)] border border-[var(--border-standard)]">
-          <p className="text-[13px] font-semibold mb-2">Or paste your chat ID manually</p>
+          <p className="text-[13px] font-semibold mb-2">{tx("Or paste your chat ID manually")}</p>
           <Input
-            label="Telegram chat ID"
-            placeholder="e.g. 5044823931"
+            label={tx("Telegram chat ID")}
+            placeholder={tx("e.g. 5044823931")}
             value={manualInput}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setManualInput(e.target.value)}
           />
           <div className="mt-3">
-            <Button onClick={() => saveChatId(manualInput)}>Load my data</Button>
+            <Button onClick={() => saveChatId(manualInput)}>{tx("Load my data")}</Button>
           </div>
         </div>
-        {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+        {error && <p className="mt-3 text-sm text-red-600">{tx(error)}</p>}
       </div>
     );
   }
@@ -369,9 +361,9 @@ export const MyAccount: React.FC = () => {
     <div className="max-w-3xl mx-auto py-10 px-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight">My Trips &amp; Complaints</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight">{tx("My Trips & Complaints")}</h1>
           <p className="mt-1 text-[13px] text-[var(--text-secondary)]">
-            Live — refreshed every 15 seconds · chat {chatId}
+            {tx("Live — refreshed every 15 seconds · chat")}{chatId}
           </p>
         </div>
         <Button
@@ -383,22 +375,20 @@ export const MyAccount: React.FC = () => {
             setComplaints([]);
           }}
         >
-          Unlink
-        </Button>
+          {tx("Unlink")}</Button>
       </div>
 
-      {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-4 text-sm text-red-600">{tx(error)}</p>}
 
       <section className="mt-8">
         <h2 className="text-[13px] font-mono font-bold tracking-wider text-[var(--brand)] uppercase">
-          Saved trips ({trips.length})
+          {tx("Saved trips (")}{trips.length})
         </h2>
         {loading && !trips.length ? (
-          <p className="mt-3 text-sm text-[var(--text-secondary)]">Loading…</p>
+          <p className="mt-3 text-sm text-[var(--text-secondary)]">{tx("Loading…")}</p>
         ) : trips.length === 0 ? (
           <p className="mt-3 text-sm text-[var(--text-secondary)]">
-            No trips yet — file a complaint in the bot and your route is remembered here.
-          </p>
+            {tx("No trips yet — file a complaint in the bot and your route is remembered here.")}</p>
         ) : (
           <div className="mt-3 space-y-2">
             {trips.map((t, i) => (
@@ -409,10 +399,10 @@ export const MyAccount: React.FC = () => {
                 <div>
                   <p className="font-bold text-[14px]">🚌 {t.route_label}</p>
                   {t.bus_number && (
-                    <p className="text-[12px] text-[var(--text-secondary)]">Bus {t.bus_number}</p>
+                    <p className="text-[12px] text-[var(--text-secondary)]">{tx("Bus")}{t.bus_number}</p>
                   )}
                 </div>
-                <span className="text-[12px] text-[var(--text-secondary)]">{t.use_count}× used</span>
+                <span className="text-[12px] text-[var(--text-secondary)]">{t.use_count}{tx("× used")}</span>
               </div>
             ))}
           </div>
@@ -421,12 +411,12 @@ export const MyAccount: React.FC = () => {
 
       <section className="mt-8">
         <h2 className="text-[13px] font-mono font-bold tracking-wider text-[var(--brand)] uppercase">
-          My complaints ({complaints.length})
+          {tx("My complaints (")}{complaints.length})
         </h2>
         {loading && !complaints.length ? (
-          <p className="mt-3 text-sm text-[var(--text-secondary)]">Loading…</p>
+          <p className="mt-3 text-sm text-[var(--text-secondary)]">{tx("Loading…")}</p>
         ) : complaints.length === 0 ? (
-          <p className="mt-3 text-sm text-[var(--text-secondary)]">No complaints from your account yet.</p>
+          <p className="mt-3 text-sm text-[var(--text-secondary)]">{tx("No complaints from your account yet.")}</p>
         ) : (
           <div className="mt-3 space-y-2">
             {complaints.map((c) => (

@@ -23,6 +23,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   useEffect(() => {
     document.documentElement.lang = language;
+    document.title = language === 'ml' ? 'സമാധാൻ — നിങ്ങളുടെ ശബ്ദം. മെച്ചപ്പെട്ട യാത്ര.' : 'SAMADHAN — Your Voice. A Better Journey.';
   }, [language]);
 
   const t = (key: string): string => {

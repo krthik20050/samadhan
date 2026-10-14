@@ -46,6 +46,8 @@ export interface TicketExtract {
   trip_code: string | null;
   depot_phone: string | null;
   landmark: string | null;
+  via?: string | null;
+  seat_number?: string | null;
   has_qr: boolean | null;
 }
 
@@ -250,15 +252,11 @@ export const complaintsService = {
   async extractTicket(file: File): Promise<TicketExtract | null> {
     const form = new FormData();
     form.append('file', file);
-    try {
-      const res = await api<{ extracted: TicketExtract | null }>('/api/v1/extract/ticket', {
-        method: 'POST',
-        body: form,
-      });
-      return res?.extracted ?? null;
-    } catch {
-      return null; // complaint can still be filed by hand
-    }
+    const res = await api<{ extracted: TicketExtract | null }>('/api/v1/extract/ticket', {
+      method: 'POST',
+      body: form,
+    });
+    return res?.extracted ?? null;
   },
 
   /** Upload one evidence file to the bucket. Throws so the caller can surface the failure. */

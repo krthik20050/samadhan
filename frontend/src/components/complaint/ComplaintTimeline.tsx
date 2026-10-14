@@ -1,3 +1,4 @@
+import { useText } from '../../hooks/useText';
 import React from 'react';
 import type { TimelineEvent } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
@@ -13,6 +14,7 @@ export const ComplaintTimeline: React.FC<ComplaintTimelineProps> = ({
   timeline,
   isEscalated = false,
 }) => {
+  const tx = useText();
   const { language } = useLanguage();
 
   return (
@@ -46,17 +48,17 @@ export const ComplaintTimeline: React.FC<ComplaintTimelineProps> = ({
                   </h4>
                   {isBreached && (
                     <span className="text-[10px] font-mono uppercase text-[var(--semantic-error)] font-bold">
-                      [SLA Overdue]
+                      [{tx('SLA Overdue')}]
                     </span>
                   )}
                   {event.status === 'escalated' && (
                     <span className="text-[10px] font-mono uppercase text-[var(--semantic-error)] font-bold">
-                      [Escalated to DTO]
+                      [{tx('Escalated to DTO')}]
                     </span>
                   )}
                   {isLast && !isBreached && !isResolved && (
                     <span className="text-[10px] font-mono uppercase text-[var(--brand)] font-medium">
-                      [Current Stage]
+                      [{tx('Current Stage')}]
                     </span>
                   )}
                 </div>
@@ -75,7 +77,7 @@ export const ComplaintTimeline: React.FC<ComplaintTimelineProps> = ({
               {event.actor && (
                 <div className="flex items-center gap-1.5 text-[11px] font-mono text-[var(--text-muted)] pt-0.5">
                   <User className="w-3 h-3 text-[var(--brand)]" />
-                  <span>Action by: {event.actor}</span>
+                  <span>{tx("Action by:")}{event.actor}</span>
                 </div>
               )}
             </div>
@@ -87,8 +89,7 @@ export const ComplaintTimeline: React.FC<ComplaintTimelineProps> = ({
         <div className="pt-2 flex items-start gap-2.5 text-[13px] text-[var(--semantic-error)]">
           <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
           <p className="leading-relaxed">
-            <strong>Escalation Active:</strong> Because this grievance breached the depot resolution SLA, it was automatically forwarded to the District Transport Officer for executive inquiry.
-          </p>
+            <strong>{tx("Escalation Active:")}</strong> {tx("Because this grievance breached the depot resolution SLA, it was automatically forwarded to the District Transport Officer for executive inquiry.")}</p>
         </div>
       )}
     </div>

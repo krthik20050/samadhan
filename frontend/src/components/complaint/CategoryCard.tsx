@@ -81,7 +81,7 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({
           </h4>
 
           <div className="text-[12px] text-[#6B706C] mt-0.5">
-            {language === 'ml' ? category.labelEn : category.labelMl}
+            {language === 'ml' ? category.descriptionMl : category.labelMl}
           </div>
 
           {!compact && (

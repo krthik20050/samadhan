@@ -1,3 +1,4 @@
+import { useText } from '../../hooks/useText';
 import React, { useState } from 'react';
 import { Copy, Check } from 'lucide-react';
 
@@ -12,6 +13,7 @@ export const ReferenceNumber: React.FC<ReferenceNumberProps> = ({
   size = 'md',
   showCopy = true,
 }) => {
+  const tx = useText();
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async (e: React.MouseEvent) => {
@@ -44,14 +46,13 @@ export const ReferenceNumber: React.FC<ReferenceNumberProps> = ({
         <button
           type="button"
           onClick={handleCopy}
-          title="Copy Reference Number"
-          aria-label="Copy reference number to clipboard"
+          title={tx("Copy Reference Number")}
+          aria-label={tx("Copy reference number to clipboard")}
           className="p-1.5 rounded-lg text-[#66716D] hover:text-[#123C3A] hover:bg-[#F6F3EC] active:scale-[0.98] transition-all cursor-pointer"
         >
           {copied ? (
             <span className="inline-flex items-center text-xs font-semibold text-[#287A58] gap-1">
-              <Check className="w-4 h-4" /> Copied
-            </span>
+              <Check className="w-4 h-4" /> {tx("Copied")}</span>
           ) : (
             <Copy className="w-4 h-4" />
           )}

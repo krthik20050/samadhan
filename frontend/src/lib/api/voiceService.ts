@@ -4,7 +4,7 @@
  * to the backend proxy endpoint (/api/v1/voice/transcribe).
  */
 
-const BASE = (import.meta.env.VITE_API_URL ?? 'http://localhost:8000').replace(/\/+$/, '');
+const BASE = (import.meta.env.VITE_API_URL ?? 'https://ikipstqlumypppfypdrx.supabase.co/functions/v1/api').replace(/\/+$/, '');
 const SARVAM_API_KEY = (import.meta.env.VITE_SARVAM_API_KEY ?? '').trim();
 const SARVAM_STT_URL = 'https://api.sarvam.ai/speech-to-text';
 

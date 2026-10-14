@@ -1,3 +1,4 @@
+import { useText } from '../../hooks/useText';
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useLanguage } from '../../hooks/useLanguage';
@@ -6,6 +7,7 @@ import { Menu, X, Mic, Languages, User, ShieldCheck, LogOut } from 'lucide-react
 import { Button } from '../common/Button';
 
 export const Header: React.FC = () => {
+  const tx = useText();
   const { language, setLanguage, t } = useLanguage();
   const { user, isAuthenticated, isAdmin, logout } = useAuth();
   const location = useLocation();
@@ -38,8 +40,7 @@ export const Header: React.FC = () => {
             </div>
             <div className="flex items-baseline gap-2 text-left">
               <span className="text-[19px] font-extrabold tracking-tight text-[#0B302D] font-['Plus_Jakarta_Sans']">
-                SAMADHAN
-              </span>
+                {tx("SAMADHAN")}</span>
               <span className="text-[13px] font-semibold text-[#164E48] font-['Noto_Sans_Malayalam']">
                 സമാധാൻ
               </span>
@@ -60,7 +61,7 @@ export const Header: React.FC = () => {
                       : 'text-[#6B706C] font-medium hover:text-[#171A19]'
                   }`}
                 >
-                  {item.label}
+                  {tx(item.label)}
                   {active && (
                     <span className="absolute bottom-[-4px] left-0 right-0 h-[2px] bg-[#164E48] rounded-full" />
                   )}
@@ -82,8 +83,7 @@ export const Header: React.FC = () => {
                     : 'text-[#6B706C] hover:text-[#171A19]'
                 }`}
               >
-                EN
-              </button>
+                {tx("EN")}</button>
               <button
                 type="button"
                 onClick={() => setLanguage('ml')}
@@ -106,19 +106,19 @@ export const Header: React.FC = () => {
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-[#164E48]/10 text-[#164E48] text-[13px] font-semibold hover:bg-[#164E48]/15 transition-colors"
                   >
                     <ShieldCheck className="w-3.5 h-3.5" />
-                    <span>Depot Ops</span>
+                    <span>{tx("Depot Ops")}</span>
                   </Link>
                 ) : (
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-white text-[#171A19] text-[13px] font-medium border border-[#D9D7D0]">
+                  <Link to="/account" className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-white text-[#171A19] text-[13px] font-medium border border-[#D9D7D0]">
                     <User className="w-3.5 h-3.5 text-[#164E48]" />
                     <span className="max-w-[100px] truncate">{user?.name}</span>
-                  </div>
+                  </Link>
                 )}
                 <button
                   type="button"
                   onClick={logout}
                   className="p-1.5 rounded-[8px] text-[#6B706C] hover:text-[#B34747] transition-colors cursor-pointer"
-                  title="Sign Out"
+                  title={tx("Sign Out")}
                 >
                   <LogOut className="w-4 h-4" />
                 </button>
@@ -128,8 +128,7 @@ export const Header: React.FC = () => {
                 to="/login"
                 className="px-2.5 py-1.5 text-[14px] font-medium text-[#6B706C] hover:text-[#171A19] transition-colors"
               >
-                Sign In
-              </Link>
+                {tx("Sign In")}</Link>
             )}
 
             {/* Primary Action Button */}
@@ -139,7 +138,7 @@ export const Header: React.FC = () => {
               onClick={() => navigate('/file-complaint')}
               className="text-[14px] h-[40px] px-4 font-semibold"
             >
-              {language === 'ml' ? 'പരാതി നൽകുക' : 'File a Complaint'}
+              {language === 'ml' ? 'പരാതി നൽകുക' : tx("File a Complaint")}
             </Button>
           </div>
 
@@ -151,13 +150,13 @@ export const Header: React.FC = () => {
               className="px-2 py-1 text-[12px] font-semibold rounded-[6px] border border-[#D9D7D0] bg-[#ECEAE4] text-[#164E48]"
             >
               <Languages className="w-3.5 h-3.5 inline mr-1" />
-              {language === 'en' ? 'മല' : 'EN'}
+              {language === 'en' ? 'മല' : tx("EN")}
             </button>
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 rounded-[8px] text-[#171A19] hover:bg-[#ECEAE4] transition-colors"
-              aria-label="Toggle navigation menu"
+              aria-label={tx("Toggle navigation menu")}
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
@@ -180,7 +179,7 @@ export const Header: React.FC = () => {
                     : 'text-[#171A19] hover:bg-[#ECEAE4]'
                 }`}
               >
-                {item.label}
+                {tx(item.label)}
               </Link>
             ))}
 
@@ -198,8 +197,7 @@ export const Header: React.FC = () => {
                   }}
                   className="text-xs font-semibold text-[#B34747]"
                 >
-                  Sign Out
-                </button>
+                  {tx("Sign Out")}</button>
               </div>
             ) : (
               <Link
@@ -207,8 +205,7 @@ export const Header: React.FC = () => {
                 onClick={() => setMobileMenuOpen(false)}
                 className="block px-3.5 py-2 rounded-[8px] text-[15px] font-semibold text-[#164E48] bg-white border border-[#D9D7D0]"
               >
-                Sign In
-              </Link>
+                {tx("Sign In")}</Link>
             )}
           </nav>
           <div className="pt-2 border-t border-[#D9D7D0]">
@@ -222,7 +219,7 @@ export const Header: React.FC = () => {
               }}
               icon={<Mic className="w-4 h-4" />}
             >
-              {language === 'ml' ? 'പരാതി നൽകുക' : 'File a Complaint'}
+              {language === 'ml' ? 'പരാതി നൽകുക' : tx("File a Complaint")}
             </Button>
           </div>
         </div>

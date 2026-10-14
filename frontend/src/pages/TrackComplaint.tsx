@@ -1,3 +1,4 @@
+import { useText } from '../hooks/useText';
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { trackingService } from '../lib/api';
@@ -22,6 +23,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export const TrackComplaint: React.FC = () => {
+  const tx = useText();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [refInput, setRefInput] = useState(searchParams.get('ref') || '');
@@ -71,14 +73,11 @@ export const TrackComplaint: React.FC = () => {
       {/* Page Header (Editorial Left Alignment) */}
       <div className="mb-8 space-y-2">
         <div className="text-[12px] font-mono font-bold tracking-wider text-[var(--brand)] uppercase">
-          STATUS LOOKUP
-        </div>
+          {tx("STATUS LOOKUP")}</div>
         <h1 className="text-[34px] sm:text-[42px] font-extrabold text-[var(--text-primary)] tracking-tight font-['Plus_Jakarta_Sans'] leading-tight">
-          Track a complaint.
-        </h1>
+          {tx("Track a complaint.")}</h1>
         <p className="text-[16px] text-[var(--text-secondary)] max-w-xl leading-relaxed">
-          Enter your reference number below to check depot assignment, inspection status, and resolution progress.
-        </p>
+          {tx("Enter your reference number below to check depot assignment, inspection status, and resolution progress.")}</p>
       </div>
 
       {/* Search Input Row (NO Giant Card Around Input) */}
@@ -92,8 +91,8 @@ export const TrackComplaint: React.FC = () => {
         >
           <div className="flex-1 w-full">
             <Input
-              label="Complaint Reference Number"
-              placeholder="e.g. SAM-2026-001284"
+              label={tx("Complaint Reference Number")}
+              placeholder={tx("e.g. SAM-2026-001284")}
               value={refInput}
               onChange={(e) => setRefInput(e.target.value)}
               leftIcon={<Search className="w-4 h-4 text-[var(--text-muted)]" />}
@@ -108,8 +107,7 @@ export const TrackComplaint: React.FC = () => {
             isLoading={isLoading}
             className="w-full sm:w-auto font-medium px-8 shrink-0 h-[48px]"
           >
-            Track Status
-          </Button>
+            {tx("Track Status")}</Button>
         </form>
 
       </div>
@@ -119,8 +117,7 @@ export const TrackComplaint: React.FC = () => {
         <div className="py-12 text-left space-y-2">
           <div className="w-6 h-6 border-2 border-[var(--brand)] border-t-transparent rounded-full animate-spin" />
           <p className="text-[14px] text-[var(--text-secondary)]">
-            Retrieving your complaint…
-          </p>
+            {tx("Retrieving your complaint…")}</p>
         </div>
       )}
 
@@ -128,11 +125,9 @@ export const TrackComplaint: React.FC = () => {
       {!isLoading && searched && !complaint && (
         <div className="py-8 space-y-3">
           <h3 className="text-[18px] font-bold text-[var(--text-primary)]">
-            We couldn’t locate that complaint.
-          </h3>
+            {tx("We couldn’t locate that complaint.")}</h3>
           <p className="text-[14px] text-[var(--text-secondary)] max-w-md">
-            Check the reference number and try again. Only complaints stored in the backend can be tracked.
-          </p>
+            {tx("Check the reference number and try again. Only complaints stored in the backend can be tracked.")}</p>
         </div>
       )}
 
@@ -143,8 +138,7 @@ export const TrackComplaint: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3">
             <div>
               <span className="text-[11px] font-mono uppercase tracking-wider text-[var(--text-muted)] block">
-                REFERENCE NUMBER
-              </span>
+                {tx("REFERENCE NUMBER")}</span>
               <div className="mt-1">
                 <ReferenceNumber value={complaint.referenceNumber} size="lg" />
               </div>
@@ -152,8 +146,7 @@ export const TrackComplaint: React.FC = () => {
 
             <div className="sm:text-right">
               <span className="text-[11px] font-mono uppercase tracking-wider text-[var(--text-muted)] block">
-                CURRENT STATUS
-              </span>
+                {tx("CURRENT STATUS")}</span>
               <div className="inline-flex items-center gap-2 mt-1">
                 <span className={`w-2 h-2 rounded-full ${
                   complaint.status === 'resolved'
@@ -172,32 +165,31 @@ export const TrackComplaint: React.FC = () => {
           {/* Structured Details (Thin Rules, NO Box inside Box) */}
           <div className="divide-y divide-[var(--border-standard)] border-t border-b border-[var(--border-standard)] text-[14px]">
             <div className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-              <span className="text-[var(--text-secondary)]">Route & Corridor</span>
+              <span className="text-[var(--text-secondary)]">{tx("Route & Corridor")}</span>
               <span className="font-bold text-[var(--text-primary)]">
                 {complaint.route.origin} → {complaint.route.destination}
-                {complaint.route.via && <span className="font-normal text-[var(--text-secondary)]"> (Via {complaint.route.via})</span>}
+                {complaint.route.via && <span className="font-normal text-[var(--text-secondary)]"> {tx("(Via")}{complaint.route.via})</span>}
               </span>
             </div>
 
             <div className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-              <span className="text-[var(--text-secondary)]">Assigned Operating Depot</span>
+              <span className="text-[var(--text-secondary)]">{tx("Assigned Operating Depot")}</span>
               <span className="font-bold text-[var(--text-primary)]">
                 {complaint.assignedDepot?.name || 'Assigned Depot'} ({complaint.assignedDepot?.zone})
               </span>
             </div>
 
             <div className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-              <span className="text-[var(--text-secondary)]">Citizen Charter Target</span>
+              <span className="text-[var(--text-secondary)]">{tx("Citizen Charter Target")}</span>
               <span className="font-mono text-[var(--text-primary)]">
-                Within {complaint.slaTargetHours} Hours
-                {complaint.isEscalated && (
+                {tx("Within")}{complaint.slaTargetHours} {tx("Hours")}{complaint.isEscalated && (
                   <span className="text-[var(--semantic-error)] font-bold ml-2">[Auto-escalated to DTO]</span>
                 )}
               </span>
             </div>
 
             <div className="py-3.5 space-y-1">
-              <span className="text-[var(--text-secondary)] block">Reported Grievance</span>
+              <span className="text-[var(--text-secondary)] block">{tx("Reported Grievance")}</span>
               <p className="text-[var(--text-primary)] leading-relaxed">
                 {complaint.description}
               </p>
@@ -208,11 +200,9 @@ export const TrackComplaint: React.FC = () => {
           <div className="space-y-4 pt-2">
             <div>
               <span className="text-[11px] font-mono uppercase tracking-wider text-[var(--text-muted)] block">
-                TIMELINE
-              </span>
+                {tx("TIMELINE")}</span>
               <h2 className="text-[20px] font-bold text-[var(--text-primary)] mt-0.5">
-                Resolution progress
-              </h2>
+                {tx("Resolution progress")}</h2>
             </div>
 
             <ComplaintTimeline

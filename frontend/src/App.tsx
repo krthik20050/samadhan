@@ -1,7 +1,7 @@
+import { useText } from './hooks/useText';
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
-import { LanguageProvider } from './context/LanguageContext';
 import { ComplaintDraftProvider } from './context/ComplaintDraftContext';
 import { AuthProvider } from './context/AuthContext';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
@@ -20,7 +20,6 @@ import { TrackComplaint } from './pages/TrackComplaint';
 import { MyAccount } from './pages/MyAccount';
 
 // Code-split: voice recording, public dashboard, auth, admin console.
-const VoiceComplaint = lazy(() => import('./pages/VoiceComplaint').then(m => ({ default: m.VoiceComplaint })));
 const PublicDashboard = lazy(() => import('./pages/PublicDashboard').then(m => ({ default: m.PublicDashboard })));
 const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
@@ -29,16 +28,15 @@ const AdminEscalations = lazy(() => import('./pages/admin/AdminEscalations').the
 const AdminNotifications = lazy(() => import('./pages/admin/AdminNotifications').then(m => ({ default: m.AdminNotifications })));
 
 function App() {
+  const tx = useText();
   return (
     <AuthProvider>
-      <LanguageProvider>
         <ComplaintDraftProvider>
           <BrowserRouter>
             <Suspense
               fallback={
                 <div className="min-h-screen grid place-items-center text-sm text-[var(--text-secondary)]">
-                  Loading…
-                </div>
+                  {tx("Loading…")}</div>
               }
             >
             <Routes>
@@ -46,7 +44,7 @@ function App() {
               <Route element={<PublicLayout />}>
                 <Route path="/" element={<Home />} />
                 <Route path="/file-complaint" element={<FileComplaint />} />
-                <Route path="/file-complaint/voice" element={<VoiceComplaint />} />
+                <Route path="/file-complaint/voice" element={<Navigate to="/file-complaint?mode=voice" replace />} />
                 <Route path="/file-complaint/review" element={<ReviewComplaint />} />
                 <Route path="/file-complaint/success" element={<ComplaintSuccess />} />
                 <Route path="/track" element={<TrackComplaint />} />
@@ -84,7 +82,6 @@ function App() {
             </Suspense>
           </BrowserRouter>
         </ComplaintDraftProvider>
-      </LanguageProvider>
     </AuthProvider>
   );
 }
