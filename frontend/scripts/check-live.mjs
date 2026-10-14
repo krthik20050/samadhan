@@ -10,7 +10,11 @@ await check('/api/v1/admin/analytics',401);
 await check('/api/v1/dashboard/complaints',401);
 await check('/api/v1/auth/login',401,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:'invalid-test-password'})});
 const token=get('ADMIN_API_TOKEN');if(!token)throw new Error('Existing staff configuration unavailable');
-await check('/api/v1/auth/login',200,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:token})});
+await check('/api/v1/auth/login',200,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:'{}'});
+if(get('ADMIN_LOGIN_ID')&&get('ADMIN_LOGIN_PASSWORD')){
+  await check('/api/v1/auth/login',401,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({identifier:'invalid-test-id',password:get('ADMIN_LOGIN_PASSWORD')})});
+  await check('/api/v1/auth/login',200,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({identifier:get('ADMIN_LOGIN_ID'),password:get('ADMIN_LOGIN_PASSWORD')})});
+}
 await check('/api/v1/admin/analytics',200,{headers:{Authorization:`Bearer ${token}`}});
 await check('/api/v1/dashboard/complaints',200,{headers:{Authorization:`Bearer ${token}`}});
 console.log('Staff authentication and access controls passed. No private record bodies logged.');

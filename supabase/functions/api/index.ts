@@ -1674,8 +1674,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const body = await req.json().catch(() => ({}));
       const expected = adminToken();
       if (!expected) return json({ detail: 'staff auth not configured' }, 503);
-      if (constantTimeEqual(String(body.password ?? ''), expected)) {
+      // Existing sessions are revalidated with their bearer, not the login password.
+      if (req.headers.has('authorization') && requireStaff(req) === null) {
         return json({ role: 'admin' });
+      }
+      const loginId = Deno.env.get('ADMIN_LOGIN_ID');
+      const loginPassword = Deno.env.get('ADMIN_LOGIN_PASSWORD');
+      const validId = !loginId || constantTimeEqual(String(body.identifier ?? ''), loginId);
+      if (validId && constantTimeEqual(String(body.password ?? ''), loginPassword || expected)) {
+        return json({ role: 'admin', token: expected });
       }
       return json({ detail: 'invalid staff credentials' }, 401);
     }

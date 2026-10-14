@@ -35,6 +35,11 @@ It uses real status counts, paginated server filters and recorded status history
 Resolved and closed counts are distinct. API failures show unknown counts rather
 than invented zeroes. Google profile photos come from Clerk's current user.
 Staff sign-in is `/login?mode=staff`, including while a passenger is signed in.
+The server checks `ADMIN_LOGIN_ID` and `ADMIN_LOGIN_PASSWORD` when configured,
+then returns the existing staff bearer for the browser session. The login
+password is not saved as the bearer. Saved sessions are revalidated with their
+Authorization header. Login settings stay in ignored configuration and server
+secrets, not in the frontend bundle.
 
 `useText` localizes site-owned copy through a Malayalam dictionary. The language
 choice persists across navigation, including login and admin pages. User text,

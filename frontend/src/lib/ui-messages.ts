@@ -1,4 +1,5 @@
 const messages = `
+Admin ID|അഡ്മിൻ ഐഡി
 Finish or close voice input before submitting.|സമർപ്പിക്കുന്നതിനുമുൻപ് ശബ്ദം പൂർത്തിയാക്കുക അല്ലെങ്കിൽ ശബ്ദ ഇൻപുട്ട് അടയ്ക്കുക.
 YOUR COMPLAINT|നിങ്ങളുടെ പരാതി
 Tell us what happened.|എന്താണ് സംഭവിച്ചതെന്ന് പറയൂ.

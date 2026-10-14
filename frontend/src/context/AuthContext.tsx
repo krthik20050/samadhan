@@ -47,8 +47,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!saved) return;
     let active = true;
     fetch(`${API_BASE}/api/v1/auth/login`, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({password:saved.token}), signal:AbortSignal.timeout(15000),
+      method: 'POST', headers: {'Content-Type':'application/json',Authorization:`Bearer ${saved.token}`},
+      body: '{}', signal:AbortSignal.timeout(15000),
     }).then(res => {
       if (active && !res.ok) { staffSession.clear(); setStaff(null); }
     }).catch(() => { if (active) { staffSession.clear(); setStaff(null); } })
@@ -97,21 +97,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!identifier.trim()) {
         return { success: false as const, error: 'Please enter your name or identifier.' };
       }
-      if (!trimmedPass || trimmedPass.length < 4) {
-        return { success: false as const, error: 'Please enter a valid password (minimum 4 characters).' };
+      if (!trimmedPass) {
+        return { success: false as const, error: 'Please enter the depot password.' };
       }
       // The server is the only source of the admin role.
       try {
         const res = await fetch(`${API_BASE}/api/v1/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password: trimmedPass }),
+          body: JSON.stringify({ identifier: identifier.trim(), password: trimmedPass }),
         });
         if (res.ok) {
+          const payload = await res.json() as {role?:string;token?:string};
+          if(payload.role!=='admin'||!payload.token) return {success:false as const,error:'Incorrect staff credentials.'};
           const name = identifier.trim().toLowerCase() === 'admin'
             ? 'Depot Operations Officer'
             : identifier.trim();
-          staffSession.save(name, trimmedPass);
+          staffSession.save(name, payload.token);
           setStaff(staffSession.get());
           return { success: true as const, role: 'admin' as UserRole };
         }

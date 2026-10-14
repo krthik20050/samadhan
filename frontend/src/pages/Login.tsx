@@ -47,7 +47,7 @@ export const Login: React.FC = () => {
 
     if (!identifier.trim()) {
       setError('Please enter your name or operational identifier.');
-      return;
+        return;
     }
     if (!password.trim()) {
       setError('Please enter the depot password.');
@@ -134,7 +134,7 @@ export const Login: React.FC = () => {
 
               <div>
                 <Input
-                  label={tx("Name")}
+                  label={tx("Admin ID")}
                   id="name"
                   name="name"
                   autoComplete="username"
