@@ -20,9 +20,6 @@ export const Footer: React.FC = () => {
                 <span className="text-[18px] font-extrabold tracking-tight text-[var(--brand-deep)] font-['Plus_Jakarta_Sans']">
                   SAMADHAN
                 </span>
-                <span className="text-[13px] font-semibold text-[var(--brand)] font-['Noto_Sans_Malayalam']">
-                  സമാധാൻ
-                </span>
               </div>
             </div>
             <p className="text-[14px] text-[var(--text-secondary)] leading-relaxed max-w-md">
@@ -43,11 +40,6 @@ export const Footer: React.FC = () => {
               <li>
                 <Link to="/file-complaint" className="hover:text-[var(--brand)] transition-colors">
                   {t('navFileComplaint')}
-                </Link>
-              </li>
-              <li>
-                <Link to="/file-complaint/voice" className="hover:text-[var(--brand)] transition-colors">
-                  Speak a Complaint
                 </Link>
               </li>
               <li>
@@ -87,7 +79,7 @@ export const Footer: React.FC = () => {
 
         {/* Bottom Bar */}
         <div className="border-t border-[var(--border-standard)] mt-10 pt-6 flex flex-col sm:flex-row items-center justify-between text-[12px] text-[var(--text-muted)] gap-3 font-mono">
-          <p>© 2026 SAMADHAN (സമാധാൻ). Designed for Public Transport Passengers.</p>
+          <p>© 2026 SAMADHAN. Designed for Public Transport Passengers.</p>
           <div className="flex items-center gap-5">
             <span>Accessibility First</span>
             <span>Privacy Focused</span>

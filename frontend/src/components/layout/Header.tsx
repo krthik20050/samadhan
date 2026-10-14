@@ -40,9 +40,6 @@ export const Header: React.FC = () => {
               <span className="text-[19px] font-extrabold tracking-tight text-[#0B302D] font-['Plus_Jakarta_Sans']">
                 SAMADHAN
               </span>
-              <span className="text-[13px] font-semibold text-[#164E48] font-['Noto_Sans_Malayalam']">
-                സമാധാൻ
-              </span>
             </div>
           </Link>
 

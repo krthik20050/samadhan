@@ -231,14 +231,31 @@ export const FileComplaint: React.FC = () => {
 
       <div className="space-y-8">
         <section className="space-y-4">
+          <div>
+            <p className="text-[11px] font-mono font-bold tracking-wider text-[var(--brand)] uppercase">{t('formTicketLabel')}</p>
+            <h2 className="text-[22px] font-bold text-[var(--text-primary)]">{t('formTicketHeading')}</h2>
+            <p className="text-[14px] text-[var(--text-secondary)] mt-1">{t('formTicketSubheading')}</p>
+          </div>
+          <div className="p-4 rounded-[12px] bg-[var(--surface-primary)] border border-[var(--border-standard)]">
+            <div className="flex flex-wrap items-center gap-3">
+              <input type="file" id="ticket-photo" accept="image/*" onChange={handleTicketUpload} className="hidden" />
+              <label htmlFor="ticket-photo" className="inline-flex items-center gap-2 px-3.5 py-2 rounded-[8px] border border-[var(--border-standard)] text-[13px] font-semibold cursor-pointer hover:border-[var(--brand)]">
+                <Ticket className="w-4 h-4 text-[var(--brand)]" />{ticketStatus === 'reading' ? t('formReadingTicket') : t('formUploadTicket')}
+              </label>
+              {ticketStatus === 'reading' && <div className="h-2 flex-1 min-w-[160px] rounded-full bg-[var(--bg-primary)] overflow-hidden"><div className="h-full w-2/3 rounded-full bg-[var(--brand)] animate-pulse" /></div>}
+              {ticketStatus === 'reading' && <span className="text-[12px] text-[var(--text-secondary)]">{t('formExtracting')}</span>}
+            </div>
+            {ticketStatus === 'read' && <div className="mt-3 flex items-start gap-2 text-[13px] text-[var(--text-secondary)]"><CheckCircle2 className="w-4 h-4 text-[var(--brand)] mt-0.5 shrink-0" /><span>{t('formTicketRead')} {ticketFields.map((field) => field.replace(/_/g, ' ')).join(', ')}.</span></div>}
+            {(ticketStatus === 'failed' || ticketStatus === 'unavailable') && <p className="mt-3 text-[13px] text-[var(--text-secondary)]">{ticketStatus === 'failed' ? t('formTicketFailed') : t('formTicketUnavailable')}</p>}
+          </div>
+        </section>
+
+        <section className="space-y-4">
           <div className="flex items-end justify-between gap-4">
             <div>
               <p className="text-[11px] font-mono font-bold tracking-wider text-[var(--brand)] uppercase">{t('formProblemLabel')}</p>
               <h2 className="text-[22px] font-bold text-[var(--text-primary)]">{t('formProblemHeading')}</h2>
             </div>
-            <button type="button" onClick={() => setShowVoice((current) => !current)} className="inline-flex items-center gap-2 text-[13px] font-semibold text-[var(--brand)] hover:underline">
-              <Mic className="w-4 h-4" />{showVoice ? t('formHideVoice') : t('formSpeak')}
-            </button>
           </div>
           <div className="relative">
             <textarea
@@ -277,26 +294,6 @@ export const FileComplaint: React.FC = () => {
               ))}
             </div>
           )}
-        </section>
-
-        <section className="space-y-4">
-          <div>
-            <p className="text-[11px] font-mono font-bold tracking-wider text-[var(--brand)] uppercase">{t('formTicketLabel')}</p>
-            <h2 className="text-[22px] font-bold text-[var(--text-primary)]">{t('formTicketHeading')}</h2>
-            <p className="text-[14px] text-[var(--text-secondary)] mt-1">{t('formTicketSubheading')}</p>
-          </div>
-          <div className="p-4 rounded-[12px] bg-[var(--surface-primary)] border border-[var(--border-standard)]">
-            <div className="flex flex-wrap items-center gap-3">
-              <input type="file" id="ticket-photo" accept="image/*" onChange={handleTicketUpload} className="hidden" />
-              <label htmlFor="ticket-photo" className="inline-flex items-center gap-2 px-3.5 py-2 rounded-[8px] border border-[var(--border-standard)] text-[13px] font-semibold cursor-pointer hover:border-[var(--brand)]">
-                <Ticket className="w-4 h-4 text-[var(--brand)]" />{ticketStatus === 'reading' ? t('formReadingTicket') : t('formUploadTicket')}
-              </label>
-              {ticketStatus === 'reading' && <div className="h-2 flex-1 min-w-[160px] rounded-full bg-[var(--bg-primary)] overflow-hidden"><div className="h-full w-2/3 rounded-full bg-[var(--brand)] animate-pulse" /></div>}
-              {ticketStatus === 'reading' && <span className="text-[12px] text-[var(--text-secondary)]">{t('formExtracting')}</span>}
-            </div>
-            {ticketStatus === 'read' && <div className="mt-3 flex items-start gap-2 text-[13px] text-[var(--text-secondary)]"><CheckCircle2 className="w-4 h-4 text-[var(--brand)] mt-0.5 shrink-0" /><span>{t('formTicketRead')} {ticketFields.map((field) => field.replace(/_/g, ' ')).join(', ')}.</span></div>}
-            {(ticketStatus === 'failed' || ticketStatus === 'unavailable') && <p className="mt-3 text-[13px] text-[var(--text-secondary)]">{ticketStatus === 'failed' ? t('formTicketFailed') : t('formTicketUnavailable')}</p>}
-          </div>
         </section>
 
         <section className="space-y-4">
