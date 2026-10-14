@@ -256,8 +256,8 @@ export const complaintsService = {
         body: form,
       });
       return res?.extracted ?? null;
-    } catch {
-      return null; // complaint can still be filed by hand
+    } catch (error) {
+      throw error instanceof Error ? error : new Error('Ticket extraction failed');
     }
   },
 

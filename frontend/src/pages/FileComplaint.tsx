@@ -66,6 +66,8 @@ export const FileComplaint: React.FC = () => {
   const [ticketStatus, setTicketStatus] = useState<'idle' | 'reading' | 'read' | 'failed' | 'unavailable'>(
     draft.ticketExtracted ? 'read' : 'idle',
   );
+  const [ticketProgress, setTicketProgress] = useState(0);
+  const [ticketError, setTicketError] = useState<string | null>(null);
   const [ticketFields, setTicketFields] = useState<string[]>([]);
   const [evidenceFiles, setEvidenceFiles] = useState(draft.evidenceFiles || []);
   const [uploadedEvidence, setUploadedEvidence] = useState(draft.uploadedEvidence || []);
@@ -121,27 +123,44 @@ export const FileComplaint: React.FC = () => {
     event.target.value = '';
     if (!file) return;
     setError(null);
+    setTicketError(null);
+    setTicketProgress(8);
     setTicketStatus('reading');
+    const progressTimer = window.setInterval(() => {
+      setTicketProgress((current) => Math.min(current + 7, 82));
+    }, 350);
     void (async () => {
-      const extracted = await complaintsService.extractTicket(file);
-      const found = extracted
-        ? Object.entries(extracted).filter(([, value]) => value !== null && value !== '' && value !== false).map(([key]) => key)
-        : [];
-      if (extracted && found.length > 0) {
-        setTicketStatus('read');
-        setTicketFields(found);
-        if (extracted.bus_number) setBusNumber(extracted.bus_number);
-        if (extracted.origin) setOrigin(extracted.origin);
-        if (extracted.destination) setDestination(extracted.destination);
-        syncDraft({
-          ticketExtracted: extracted as unknown as Record<string, unknown>,
-          travelDate: extracted.travel_date,
-          busNumber: extracted.bus_number || busNumber,
-          origin: extracted.origin || origin,
-          destination: extracted.destination || destination,
-        });
-      } else {
-        setTicketStatus(extracted ? 'failed' : 'unavailable');
+      try {
+        const extracted = await complaintsService.extractTicket(file);
+        const found = extracted
+          ? Object.entries(extracted).filter(([, value]) => value !== null && value !== '' && value !== false).map(([key]) => key)
+          : [];
+        if (extracted && found.length > 0) {
+          setTicketStatus('read');
+          setTicketProgress(100);
+          setTicketFields(found);
+          if (extracted.bus_number) setBusNumber(extracted.bus_number);
+          if (extracted.origin) setOrigin(extracted.origin);
+          if (extracted.destination) setDestination(extracted.destination);
+          syncDraft({
+            ticketExtracted: extracted as unknown as Record<string, unknown>,
+            travelDate: extracted.travel_date,
+            busNumber: extracted.bus_number || busNumber,
+            origin: extracted.origin || origin,
+            destination: extracted.destination || destination,
+          });
+        } else {
+          setTicketProgress(100);
+          setTicketStatus('failed');
+        }
+      } catch (extractionError) {
+        setTicketProgress(100);
+        setTicketStatus('unavailable');
+        setTicketError(
+          extractionError instanceof Error && extractionError.message.startsWith('Backend ')
+            ? extractionError.message.replace(/^Backend \d+:\s*/, '')
+            : t('formTicketUnavailable'),
+        );
       }
       try {
         const uploaded = await complaintsService.uploadEvidence(file);
@@ -149,6 +168,8 @@ export const FileComplaint: React.FC = () => {
         setEvidenceFiles((current) => [...current, file.name]);
       } catch {
         setError(t('formUploadError'));
+      } finally {
+        window.clearInterval(progressTimer);
       }
     })();
   };
@@ -242,11 +263,11 @@ export const FileComplaint: React.FC = () => {
               <label htmlFor="ticket-photo" className="inline-flex items-center gap-2 px-3.5 py-2 rounded-[8px] border border-[var(--border-standard)] text-[13px] font-semibold cursor-pointer hover:border-[var(--brand)]">
                 <Ticket className="w-4 h-4 text-[var(--brand)]" />{ticketStatus === 'reading' ? t('formReadingTicket') : t('formUploadTicket')}
               </label>
-              {ticketStatus === 'reading' && <div className="h-2 flex-1 min-w-[160px] rounded-full bg-[var(--bg-primary)] overflow-hidden"><div className="h-full w-2/3 rounded-full bg-[var(--brand)] animate-pulse" /></div>}
-              {ticketStatus === 'reading' && <span className="text-[12px] text-[var(--text-secondary)]">{t('formExtracting')}</span>}
+              {ticketStatus === 'reading' && <div className="h-2 flex-1 min-w-[160px] rounded-full bg-[var(--bg-primary)] overflow-hidden"><div className="h-full rounded-full bg-[var(--brand)] transition-[width] duration-300 ease-out" style={{ width: `${ticketProgress}%` }} /></div>}
+              {ticketStatus === 'reading' && <span className="text-[12px] text-[var(--text-secondary)]">{t('formExtracting')} {ticketProgress}%</span>}
             </div>
             {ticketStatus === 'read' && <div className="mt-3 flex items-start gap-2 text-[13px] text-[var(--text-secondary)]"><CheckCircle2 className="w-4 h-4 text-[var(--brand)] mt-0.5 shrink-0" /><span>{t('formTicketRead')} {ticketFields.map((field) => field.replace(/_/g, ' ')).join(', ')}.</span></div>}
-            {(ticketStatus === 'failed' || ticketStatus === 'unavailable') && <p className="mt-3 text-[13px] text-[var(--text-secondary)]">{ticketStatus === 'failed' ? t('formTicketFailed') : t('formTicketUnavailable')}</p>}
+            {(ticketStatus === 'failed' || ticketStatus === 'unavailable') && <p className="mt-3 text-[13px] text-[var(--text-secondary)]">{ticketStatus === 'failed' ? t('formTicketFailed') : ticketError || t('formTicketUnavailable')}</p>}
           </div>
         </section>
 
