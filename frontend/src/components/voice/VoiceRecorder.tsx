@@ -10,6 +10,8 @@ import type { DraftComplaint } from '../../context/ComplaintDraftContext';
 import type { ComplaintCategory } from '../../types';
 
 interface VoiceRecorderProps {
+  showSamples?: boolean;
+  autoStart?: boolean;
   onTranscriptionComplete: (result: {
     transcript: string;
     extracted: Partial<DraftComplaint>;
@@ -66,6 +68,8 @@ function pickMimeType(): string {
 export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   onTranscriptionComplete,
   onCancel,
+  showSamples = true,
+  autoStart = false,
 }) => {
   const tx = useText();
   const { language } = useLanguage();
@@ -86,12 +90,18 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  const autoStarted = useRef(false);
+  const mounted = useRef(true);
 
   useEffect(() => {
+    mounted.current=true;
     voiceAvailable()
-      .then(setSttAvailable)
-      .catch(() => setSttAvailable(false));
+      .then(value=>{if(mounted.current)setSttAvailable(value);})
+      .catch(() => {if(mounted.current)setSttAvailable(false);});
     return () => {
+      mounted.current=false;
+      const recorder=mediaRecorderRef.current;
+      if(recorder){recorder.ondataavailable=null;recorder.onerror=null;recorder.onstop=null;if(recorder.state!=='inactive')recorder.stop();}
       stopStream();
       if (timerRef.current) clearInterval(timerRef.current);
     };
@@ -154,6 +164,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if(!mounted.current){stream.getTracks().forEach(track=>track.stop());return;}
       streamRef.current = stream;
       chunksRef.current = [];
       const recorder = new MediaRecorder(stream, { mimeType: mime });
@@ -226,6 +237,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         mode: transcriptionMode,
         translateToEnglishIfIndic: selectedLang === 'ml-IN',
       });
+      if(!mounted.current)return;
       setDetectedProvider(result.provider);
       finishWithTranscript(result.transcript, result.englishTranscript);
     } catch (e) {
@@ -277,6 +289,13 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     const secs = seconds % 60;
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
+
+  useEffect(() => {
+    if (autoStart && sttAvailable !== null && !autoStarted.current) {
+      autoStarted.current = true;
+      void startRecording();
+    }
+  }, [autoStart, sttAvailable]);
 
   return (
     <div className="w-full text-left space-y-6">
@@ -460,7 +479,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
             <Button variant="secondary" size="md" onClick={cancelRecording} icon={<X className="w-3.5 h-3.5" />}>
               {tx("Cancel")}</Button>
           </>
-        ) : (
+        ) : showSamples ? (
           <div className="flex items-center gap-4">
             <button
               type="button"
@@ -479,7 +498,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
               <span>{tx("Load sample മലയാളം voice")}</span>
             </button>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

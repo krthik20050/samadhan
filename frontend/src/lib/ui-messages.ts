@@ -1,4 +1,58 @@
 const messages = `
+Finish or close voice input before submitting.|സമർപ്പിക്കുന്നതിനുമുൻപ് ശബ്ദം പൂർത്തിയാക്കുക അല്ലെങ്കിൽ ശബ്ദ ഇൻപുട്ട് അടയ്ക്കുക.
+YOUR COMPLAINT|നിങ്ങളുടെ പരാതി
+Tell us what happened.|എന്താണ് സംഭവിച്ചതെന്ന് പറയൂ.
+Upload a ticket to fill your journey, then type or speak your complaint. Everything is on this page.|യാത്രാവിവരങ്ങൾ പൂരിപ്പിക്കാൻ ടിക്കറ്റ് നൽകുക. തുടർന്ന് പരാതി എഴുതുകയോ സംസാരിക്കുകയോ ചെയ്യാം. എല്ലാ വിവരങ്ങളും ഈ പേജിൽ നൽകാം.
+What happened?|എന്താണ് സംഭവിച്ചത്?
+Where were you on the bus?|ബസിൽ നിങ്ങൾ എവിടെയായിരുന്നു?
+For example, near the back door or at the boarding stop|ഉദാ. പിൻവാതിലിനടുത്ത് അല്ലെങ്കിൽ ബോർഡിങ് സ്റ്റോപ്പിൽ
+Optional. Type or use the mic to tell us where the problem happened.|നിർബന്ധമല്ല. പ്രശ്നം നടന്ന സ്ഥലം എഴുതുക അല്ലെങ്കിൽ മൈക്ക് ഉപയോഗിച്ച് പറയുക.
+Speak in Malayalam or English, or type. You can edit every word before submitting.|മലയാളത്തിലോ ഇംഗ്ലീഷിലോ സംസാരിക്കാം, അല്ലെങ്കിൽ എഴുതാം. സമർപ്പിക്കുന്നതിനുമുൻപ് ഓരോ വാക്കും തിരുത്താം.
+Close voice input|ശബ്ദ ഇൻപുട്ട് അടയ്ക്കുക
+Contact for updates (optional)|അറിയിപ്പുകൾക്കുള്ള വിവരം (നിർബന്ധമല്ല)
+Check your details above. Submit once and keep your reference number.|മുകളിലെ വിവരങ്ങൾ പരിശോധിക്കുക. ഒരിക്കൽ സമർപ്പിച്ച് റഫറൻസ് നമ്പർ സൂക്ഷിക്കുക.
+Describe the problem in at least 10 characters.|കുറഞ്ഞത് 10 അക്ഷരങ്ങളിൽ പ്രശ്നം വിവരിക്കുക.
+We couldn’t submit your complaint. Your details are still here. Please try again.|പരാതി സമർപ്പിക്കാനായില്ല. വിവരങ്ങൾ ഇവിടെ ഉണ്ട്. വീണ്ടും ശ്രമിക്കുക.
+Loading your account…|നിങ്ങളുടെ അക്കൗണ്ട് ലോഡ് ചെയ്യുന്നു…
+Your passenger dashboard|നിങ്ങളുടെ യാത്രക്കാരുടെ ഡാഷ്ബോർഡ്
+Keep every complaint in view.|ഓരോ പരാതിയും ഒരിടത്ത് പരിശോധിക്കാം.
+Sign in to see your complaints, resolutions and the actions your depot has taken.|പരാതികളും പരിഹാരങ്ങളും ഡിപ്പോ സ്വീകരിച്ച നടപടികളും കാണാൻ പ്രവേശിക്കുക.
+Passenger sign-in is currently unavailable.|യാത്രക്കാരുടെ പ്രവേശനം ഇപ്പോൾ ലഭ്യമല്ല.
+You can still file a complaint without an account.|അക്കൗണ്ടില്ലാതെയും പരാതി നൽകാം.
+Complaints filed|നൽകിയ പരാതികൾ
+Awaiting resolution|പരിഹാരം കാത്തിരിക്കുന്നു
+New complaint|പുതിയ പരാതി
+What you reported. What happened next.|നിങ്ങൾ നൽകിയ പരാതി. തുടർന്ന് നടന്നത്.
+Refresh|പുതുക്കുക
+Showing your last loaded data.|അവസാനം ലഭിച്ച വിവരങ്ങൾ കാണിക്കുന്നു.
+We couldn’t load your account. Retry or sign in again.|അക്കൗണ്ട് ലോഡ് ചെയ്യാനായില്ല. വീണ്ടും ശ്രമിക്കുക അല്ലെങ്കിൽ വീണ്ടും പ്രവേശിക്കുക.
+Complaint outcomes|പരാതികളുടെ ഫലം
+Resolved counts confirmed resolutions. Closed complaints are shown separately.|പരിഹരിച്ചതായി സ്ഥിരീകരിച്ച പരാതികളാണ് പരിഹരിച്ചു എന്ന എണ്ണത്തിൽ. അടച്ച പരാതികൾ വേർതിരിച്ച് കാണിക്കുന്നു.
+Your complaints|നിങ്ങളുടെ പരാതികൾ
+All complaints|എല്ലാ പരാതികളും
+Filter complaints|പരാതികൾ തിരഞ്ഞെടുക്കുക
+Loading complaints…|പരാതികൾ ലോഡ് ചെയ്യുന്നു…
+Your complaint history will appear once your account loads.|അക്കൗണ്ട് ലോഡ് ചെയ്താൽ പരാതിയുടെ ചരിത്രം കാണാം.
+No complaints yet.|ഇതുവരെ പരാതികളില്ല.
+No complaints in this view.|ഈ വിഭാഗത്തിൽ പരാതികളില്ല.
+When you report a problem, you can follow every update here.|പ്രശ്നം റിപ്പോർട്ട് ചെയ്താൽ ഓരോ തുടർനടപടിയും ഇവിടെ പരിശോധിക്കാം.
+Journey details unavailable|യാത്രാവിവരങ്ങൾ ലഭ്യമല്ല
+Awaiting depot assignment|ഡിപ്പോ ചുമതലപ്പെടുത്തൽ കാത്തിരിക്കുന്നു
+View progress|പുരോഗതി കാണുക
+Latest action|അവസാന നടപടി
+Load more complaints|കൂടുതൽ പരാതികൾ കാണുക
+Your activity|നിങ്ങളുടെ പ്രവർത്തനങ്ങൾ
+Complaints filed and resolution updates over six months.|ആറ് മാസത്തിനിടെ നൽകിയ പരാതികളും പരിഹാര നടപടികളും.
+Filed|സമർപ്പിച്ചു
+Resolution updates|പരിഹാര നടപടികൾ
+Six-month complaint activity|ആറ് മാസത്തെ പരാതി പ്രവർത്തനങ്ങൾ
+Show activity numbers|പ്രവർത്തന കണക്കുകൾ കാണുക
+Month|മാസം
+Activity starts with your first complaint.|നിങ്ങളുടെ ആദ്യ പരാതിയോടെ പ്രവർത്തനവിവരങ്ങൾ കാണാം.
+Activity is unavailable until your account loads.|അക്കൗണ്ട് ലോഡ് ചെയ്യുന്നതുവരെ പ്രവർത്തനവിവരങ്ങൾ ലഭ്യമല്ല.
+What has been done|സ്വീകരിച്ച നടപടികൾ
+Recorded depot actions will appear here.|ഡിപ്പോ രേഖപ്പെടുത്തിയ നടപടികൾ ഇവിടെ കാണാം.
+Topics you reported|നിങ്ങൾ റിപ്പോർട്ട് ചെയ്ത വിഷയങ്ങൾ
 Complete your journey and description before submitting.|സമർപ്പിക്കുന്നതിനുമുൻപ് യാത്രാവിവരങ്ങളും പരാതിയുടെ വിവരണവും പൂർത്തിയാക്കുക.
 Ticket details|ടിക്കറ്റ് വിവരങ്ങൾ
 Current Stage|നിലവിലെ ഘട്ടം

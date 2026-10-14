@@ -6,11 +6,13 @@ project root is `frontend`, so the root `vercel.json` runs `npm run build` there
 
 ## Website sequence
 
-1. Upload a ticket or explicitly continue without one.
+1. Upload a ticket, or enter the journey manually on the same page.
 2. Read the image and fill editable journey fields. Each printed field appears
    with a short highlight. Reduced-motion users receive the values immediately.
-3. Confirm or correct the journey, then type or speak the problem.
-4. Edit the transcript, select the category, and review before submitting.
+3. Correct any journey box. Type or speak the incident location and problem;
+   each field has its own mic and appends editable speech to existing text.
+4. Select the category and submit directly. The reference page appears only
+   after a successful server response. Retries reuse the same idempotency key.
 
 Absent ticket values stay empty. The boarding landmark and seat are printed
 travel facts; the location of the incident is a separate optional field. Speech
@@ -25,6 +27,15 @@ Passengers use Clerk and `/account`. Staff use server-verified credentials and
 saved staff sessions are revalidated. Vercel contains the existing Clerk
 publishable key. No backend keys belong in the browser build.
 
+Clerk's string `user_...` identity is stored separately from legacy UUID identity
+links by migration 014. Only verified primary email/phone claims can link an
+existing account. The passenger dashboard sends the current Clerk bearer token
+directly and never falls back to a saved staff token or a client-provided user ID.
+It uses real status counts, paginated server filters and recorded status history.
+Resolved and closed counts are distinct. API failures show unknown counts rather
+than invented zeroes. Google profile photos come from Clerk's current user.
+Staff sign-in is `/login?mode=staff`, including while a passenger is signed in.
+
 `useText` localizes site-owned copy through a Malayalam dictionary. The language
 choice persists across navigation, including login and admin pages. User text,
 ticket values, registration numbers, references, and filenames remain verbatim.
@@ -32,9 +43,14 @@ The Clerk sign-in/sign-up interface has Malayalam localization overrides.
 
 ## Verification on 2026-10-14
 
-- Six React regression tests passed: complete ticket mapping, editable values
-  surviving review, Malayalam switching without losing edits, speech handoff
-  without journey replacement, attachment failure, and unreadable-ticket recovery.
+- Eleven React regression tests passed, including direct single-form submission,
+  preserved corrections, voice append, retry idempotency, Malayalam switching,
+  attachment failure, unreadable tickets, dashboard profile and current token,
+  server filters, unavailable counts, and account-switch isolation.
+- Transactional database tests passed identity idempotency, own-account data
+  isolation, outcome counts, monthly activity, pagination, server filters and
+  anonymous RPC denial. All synthetic records were rolled back. Migration 014
+  and the API function were deployed.
 - TypeScript and production build passed; static localization audit passed.
 - Browser upload of a synthetic Guruvayur → Ernakulam ticket filled route, bus,
   date, time, via, landmark, seat, ticket, PNR, depot and service type. Editing

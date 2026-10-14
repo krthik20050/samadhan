@@ -10,6 +10,7 @@ export interface AuthUser {
   id: string;
   name: string;
   email?: string | null;
+  imageUrl?: string | null;
   role: UserRole;
   source: 'clerk' | 'staff';
 }
@@ -82,6 +83,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         id: u.id,
         name,
         email: u.primaryEmailAddress?.emailAddress ?? null,
+        imageUrl: u.imageUrl,
         role: metaRole === 'admin' ? 'admin' : 'passenger',
         source: 'clerk',
       };

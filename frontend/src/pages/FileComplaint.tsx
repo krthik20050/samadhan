@@ -1,7 +1,7 @@
 import { useText } from '../hooks/useText';
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, CheckCircle2, FileEdit, Mic, Ticket, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowRight, CheckCircle2, Ticket, X } from 'lucide-react';
 import { useComplaintDraft } from '../hooks/useComplaintDraft';
 import { useLanguage } from '../hooks/useLanguage';
 import { complaintsService, lookupService } from '../lib/api';
@@ -12,30 +12,33 @@ import type { JourneyValues, TicketField } from '../lib/ticketJourney';
 import type { ComplaintCategory } from '../types';
 import { Button } from '../components/common/Button';
 import { Input } from '../components/common/Input';
-import { VoiceRecorder } from '../components/voice/VoiceRecorder';
+import { VoiceField } from '../components/voice/VoiceField';
+import { newIdempotencyKey } from '../context/ComplaintDraftContext';
 
 export function FileComplaint() {
   const tx = useText();
   const navigate = useNavigate();
-  const [params, setParams] = useSearchParams();
-  const { draft, updateDraft } = useComplaintDraft();
+
+  const { draft, updateDraft, setLastSubmittedComplaint } = useComplaintDraft();
   const { language } = useLanguage();
-  const [step, setStep] = useState(params.get('step') === '2' && draft.origin ? 2 : 1);
   const [journey, setJourney] = useState<JourneyValues>(() => ({
     ...journeyFromTicket(draft.ticketExtracted as Partial<TicketExtract>),
     origin: draft.origin || '', destination: draft.destination || '', bus_number: draft.busNumber || '',
     travel_date: draft.travelDate || '', via: draft.via || '',
   }));
-  const [journeyReady, setJourneyReady] = useState(Boolean(draft.origin || draft.ticketExtracted));
   const [ticketData, setTicketData] = useState<Record<string, unknown> | null>(draft.ticketExtracted ?? null);
   const [ticketStatus, setTicketStatus] = useState<'idle' | 'reading' | 'read' | 'failed'>(draft.ticketExtracted ? 'read' : 'idle');
   const [filledFields, setFilledFields] = useState<TicketField[]>([]);
   const [description, setDescription] = useState(draft.description || '');
-  const [inputMode, setInputMode] = useState<'type' | 'voice'>(params.get('mode') === 'voice' ? 'voice' : 'type');
   const [category, setCategory] = useState<ComplaintCategory>(draft.category);
   const [location, setLocation] = useState(draft.location || '');
   const [evidence, setEvidence] = useState(draft.uploadedEvidence || []);
   const [busy, setBusy] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [activeVoice,setActiveVoice]=useState<'location'|'description'|null>(null);
+  const [phone,setPhone] = useState(draft.contactPhone || '');
+  const [channel,setChannel] = useState<'whatsapp'|'sms'|'email'>(draft.preferredContactChannel || 'whatsapp');
+  const [idempotencyKey] = useState(()=>draft.idempotencyKey ?? newIdempotencyKey());
   const [error, setError] = useState<string | null>(null);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [stops, setStops] = useState<string[]>([]);
@@ -55,7 +58,7 @@ export function FileComplaint() {
     origin: journey.origin.trim(), destination: journey.destination.trim(), busNumber: journey.bus_number.trim(),
     travelDate: journey.travel_date || null, via: journey.via.trim(), location: location.trim(),
     ticketExtracted: editedTicket(journey, ticketData), uploadedEvidence: evidence, evidenceFiles: evidence.map(e => e.name),
-    description: description.trim(), category,
+    description: description.trim(), category, contactPhone:phone.trim(), preferredContactChannel:channel, idempotencyKey,
   });
   async function readTicket(file: File) {
     if (busy) return;
@@ -73,7 +76,6 @@ export function FileComplaint() {
       if (current !== sequence.current) return;
       const values = journeyFromTicket(extracted);
       const populated = TICKET_FIELDS.filter(([key]) => values[key]);
-      setJourneyReady(true);
       if (!extracted || !populated.length) {
         setTicketStatus('failed'); setError('No readable journey details were found. Try a clearer image or enter the details yourself.');
       } else {
@@ -90,7 +92,7 @@ export function FileComplaint() {
         setTicketStatus('read');
       }
     } catch {
-      if (current === sequence.current) { setTicketStatus('failed'); setJourneyReady(true); setError('Ticket reading could not finish. Retry the photo or enter the journey details manually.'); }
+      if (current === sequence.current) { setTicketStatus('failed'); setError('Ticket reading could not finish. Retry the photo or enter the journey details manually.'); }
     } finally { await attachment; if (current === sequence.current) setBusy(false); }
   }
   async function attach(file: File) {
@@ -100,36 +102,43 @@ export function FileComplaint() {
     catch { setAttachmentError('Could not attach this file. Try again.'); }
     finally { setBusy(false); }
   }
-  function proceed() {
-    setError(null); if (busy) return;
+  async function submit() {
+    setError(null);
+    if (busy || submitting || activeVoice) return;
     if (!journey.origin.trim() || !journey.destination.trim()) { setError('Enter the starting and destination stops before continuing.'); return; }
-    saveJourney(); setStep(2); setParams({ step: '2', mode: inputMode }); window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (description.trim().length < 10) { setError('Describe the problem in at least 10 characters.'); return; }
+    saveJourney(); setSubmitting(true);
+    try {
+      const result=await complaintsService.submitComplaint({category,
+        route:{origin:journey.origin.trim(),destination:journey.destination.trim(),via:journey.via.trim()},
+        busNumber:journey.bus_number.trim(),location:location.trim()||'Onboard bus',description:description.trim(),
+        contactPhone:phone.trim()||undefined,preferredContactChannel:channel,travelDate:journey.travel_date||null,
+        ticketExtracted:editedTicket(journey,ticketData),evidence:evidence.map(file=>({storage_path:file.storage_path,mime_type:file.mime_type,size_bytes:file.size_bytes})),idempotencyKey,
+      });
+      setLastSubmittedComplaint(result); navigate('/file-complaint/success');
+    } catch { setError('We couldn’t submit your complaint. Your details are still here. Please try again.'); }
+    finally { setSubmitting(false); }
   }
-  function review() {
-    if (!description.trim()) { setError('Describe what happened before reviewing your complaint.'); return; }
-    saveJourney(); navigate('/file-complaint/review');
-  }
-  return <div className="app-container max-w-3xl py-10 sm:py-14 space-y-7">
+  return <div className="app-container py-10 sm:py-14 space-y-7" style={{maxWidth:900}}>
     <datalist id="journey-stops">{stops.map(stop => <option key={stop} value={stop} />)}</datalist>
     <div className="space-y-2">
-      <p className="text-[12px] font-mono font-bold text-[var(--brand)]">{step === 1 ? tx("STEP 01 / 03") : tx("STEP 02 / 03")}</p>
-      <h1 className="text-3xl sm:text-4xl font-extrabold text-[var(--text-primary)]">{step === 1 ? tx("Start with your ticket.") : tx("Describe the problem.")}</h1>
-      <p className="text-[var(--text-secondary)]">{step === 1 ? tx("Upload your ticket. We’ll fill the printed details, then you can check and edit every field.") : tx("Tell us what happened, where it happened and how it affected your journey. Type or speak in Malayalam or English.")}</p>
+      <p className="text-[12px] font-mono font-bold text-[var(--brand)]">{tx('YOUR COMPLAINT')}</p>
+      <h1 className="text-3xl sm:text-4xl font-extrabold text-[var(--text-primary)]">{tx('Tell us what happened.')}</h1>
+      <p className="text-[var(--text-secondary)]">{tx('Upload a ticket to fill your journey, then type or speak your complaint. Everything is on this page.')}</p>
     </div>
     {error && <p role="alert" className="p-4 border rounded-xl text-[var(--semantic-error)]">{tx(error)}</p>}
-    {step === 1 ? <>
+    <>
       <section className="p-5 rounded-xl bg-[var(--surface-primary)] border border-[var(--border-standard)] space-y-3" aria-live="polite" aria-busy={busy}>
         <h2 className="font-bold text-lg">{tx("Upload your ticket")}</h2>
         <input ref={uploadRef} id="ticket-photo" type="file" accept="image/*" disabled={busy} className="hidden" tabIndex={-1} onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void readTicket(file); }} />
         <div className="flex flex-wrap gap-3 items-center">
           <Button type="button" disabled={busy} onClick={() => uploadRef.current?.click()} icon={<Ticket className="w-4 h-4" />}>{ticketStatus === 'reading' ? tx("Reading and filling your ticket…") : tx("Upload ticket photo")}</Button>
           <span className="text-xs text-[var(--text-muted)]">{tx("Images up to 20 MB")}</span>
-          {!journeyReady && <Button type="button" variant="secondary" disabled={busy} onClick={() => setJourneyReady(true)}>{tx("Continue without a ticket")}</Button>}
         </div>
         {ticketStatus === 'read' && <p className="flex items-center gap-2 text-[var(--brand)]"><CheckCircle2 className="w-4 h-4" />{tx("Ticket read. The filled boxes below are editable.")}</p>}
-        {attachmentError && <p role="alert" className="text-sm text-[var(--semantic-error)]">{attachmentError}</p>}
+        {attachmentError && <p role="alert" className="text-sm text-[var(--semantic-error)]">{tx(attachmentError)}</p>}
       </section>
-      {journeyReady && <section className="space-y-4" aria-label={tx("Check your journey")}>
+      <section className="space-y-4" aria-label={tx("Check your journey")}>
         <h2 className="font-bold text-2xl">{tx("Check your journey")}</h2>
         <p className="text-sm text-[var(--text-secondary)]">{tx("Edit any box directly. Empty fields were not printed or could not be read. Optional details can be left blank.")}</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -139,7 +148,6 @@ export function FileComplaint() {
               helperText={filledFields.includes(key) ? 'Filled from your ticket · editable' : key === 'origin' || key === 'destination' ? 'Required' : 'Optional · enter only if known'}
               onChange={event => updateJourney(key, event.target.value)} />
           </div>)}
-          <Input id="incident-location" label={tx("Where on the bus or at the stop did the problem happen?")} value={location} helperText={tx("Optional · this describes the incident, not the ticket’s boarding stop")} onChange={event => setLocation(event.target.value)} />
         </div>
         <div className="space-y-2 pt-3">
           <h3 className="font-semibold">{tx("Supporting photo or document")}</h3>
@@ -147,30 +155,26 @@ export function FileComplaint() {
           <input ref={attachmentRef} id="supporting-file" type="file" accept="image/*,.pdf,video/*" disabled={busy} onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void attach(file); }} className="hidden" />
           {evidence.map((file, index) => <div key={`${file.storage_path}-${index}`} className="flex justify-between gap-3 text-sm"><span>{file.name}</span><button type="button" aria-label={tx("Remove attachment")} disabled={busy} onClick={() => setEvidence(previous => previous.filter((_, i) => i !== index))}><X className="w-4 h-4" /></button></div>)}
         </div>
-        <Button type="button" disabled={busy} onClick={proceed} icon={<ArrowRight className="w-4 h-4" />}>{tx("Details look right — describe the problem")}</Button>
-      </section>}
-    </> : <>
-      <button type="button" className="text-[var(--brand)] flex items-center gap-2" onClick={() => { saveJourney(); setStep(1); setParams({step:'1'}); setError(null); }}><ArrowLeft className="w-4 h-4" />{tx("Edit journey details")}</button>
-      <p className="font-semibold">{journey.origin} → {journey.destination}{journey.bus_number ? ` · ${journey.bus_number}` : ''}</p>
-      <div className="flex gap-3" role="group" aria-label={tx("Describe by typing or speaking")}>
-        <Button type="button" variant={inputMode === 'type' ? 'primary' : 'secondary'} aria-pressed={inputMode === 'type'} onClick={() => setInputMode('type')} icon={<FileEdit className="w-4 h-4" />}>{tx("Type")}</Button>
-        <Button type="button" variant={inputMode === 'voice' ? 'primary' : 'secondary'} aria-pressed={inputMode === 'voice'} onClick={() => setInputMode('voice')} icon={<Mic className="w-4 h-4" />}>{tx("Speak")}</Button>
-      </div>
-      {inputMode === 'voice' && <VoiceRecorder onTranscriptionComplete={result => {
-        setDescription(result.transcript); if (result.extracted.category) setCategory(result.extracted.category);
-        if (result.extracted.location) setLocation(result.extracted.location);
-        updateDraft({audioTranscript:result.transcript});
-      }} />}
-      <div className="space-y-2">
-        <label htmlFor="problem-description" className="font-semibold">{tx("Describe the problem")}</label>
-        <textarea id="problem-description" rows={5} value={description} onChange={event => setDescription(event.target.value)} placeholder={tx("What happened? Where and when did it happen?")} className="w-full border border-[var(--border-standard)] rounded-xl p-4 bg-[var(--surface-primary)]" />
-        <p className="text-sm text-[var(--text-muted)]">{tx("If you spoke, your words appear here. You can correct them before submitting.")}</p>
-      </div>
+      </section>
+    </>
+    <section className="space-y-6 pt-6 border-t border-[var(--border-standard)]">
+      <h2 className="font-bold text-2xl">{tx('What happened?')}</h2>
+      <VoiceField id="incident-location" label="Where were you on the bus?" value={location} onChange={setLocation} isOpen={activeVoice==='location'} onOpenChange={open=>setActiveVoice(open?'location':null)} placeholder="For example, near the back door or at the boarding stop" helperText="Optional. Type or use the mic to tell us where the problem happened."/>
+      <VoiceField id="problem-description" label="Describe the problem" value={description} onChange={setDescription} isOpen={activeVoice==='description'} onOpenChange={open=>setActiveVoice(open?'description':null)} multiline placeholder="What happened? Where and when did it happen?" helperText="Speak in Malayalam or English, or type. You can edit every word before submitting."/>
       <div className="space-y-2">
         <label htmlFor="problem-category" className="font-semibold">{tx("Complaint category")}</label>
         <select id="problem-category" value={category} onChange={event => setCategory(event.target.value as ComplaintCategory)} className="w-full border rounded-xl p-3 bg-[var(--surface-primary)]">{COMPLAINT_CATEGORIES.map(c => <option key={c.id} value={c.id}>{language === 'ml' ? c.labelMl : c.labelEn}</option>)}</select>
       </div>
-      <Button type="button" onClick={review} disabled={!description.trim()} icon={<ArrowRight className="w-4 h-4" />}>{tx("Review complaint")}</Button>
-    </>}
+      <details className="p-4 border rounded-xl border-[var(--border-standard)]">
+        <summary className="cursor-pointer font-semibold">{tx('Contact for updates (optional)')}</summary>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+          <Input label={tx('Mobile Number (Optional)')} value={phone} onChange={event=>setPhone(event.target.value)} type="tel"/>
+          <div><label htmlFor="updates-channel" className="text-sm font-semibold">{tx('Updates Channel')}</label><select id="updates-channel" className="w-full border rounded-xl p-3 mt-1 bg-[var(--surface-primary)]" value={channel} onChange={event=>setChannel(event.target.value as typeof channel)}><option value="whatsapp">{tx('WhatsApp')}</option><option value="sms">{tx('SMS')}</option><option value="email">{tx('Email')}</option></select></div>
+        </div>
+      </details>
+      <p className="text-sm text-[var(--text-secondary)]">{tx('Check your details above. Submit once and keep your reference number.')}</p>
+      {activeVoice&&<p className="text-sm text-[var(--brand)]">{tx('Finish or close voice input before submitting.')}</p>}
+      <Button type="button" onClick={()=>void submit()} disabled={busy || submitting || Boolean(activeVoice)} isLoading={submitting} fullWidth icon={<ArrowRight className="w-4 h-4" />}>{tx(submitting?'Submitting your complaint…':'Submit Complaint')}</Button>
+    </section>
   </div>;
 }

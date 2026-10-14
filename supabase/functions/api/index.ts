@@ -188,21 +188,18 @@ async function clerkUserProfile(userId: string): Promise<{
     });
     if (!r.ok) return { email: null, phone: null, name: null, role: null };
     const u = await r.json() as {
-      email_addresses?: { email_address: string }[];
-      phone_numbers?: { phone_number: string }[];
+      email_addresses?: { id: string; email_address: string; verification?: {status?: string} }[];
+      phone_numbers?: { id: string; phone_number: string; verification?: {status?: string} }[];
       first_name?: string | null; last_name?: string | null;
       primary_email_address_id?: string | null;
       primary_phone_number_id?: string | null;
       public_metadata?: Record<string, unknown>;
     };
-    const email = u.primary_email_address_id
-      ? u.email_addresses?.find((e) => e.email_address)?.email_address
-        ?? u.email_addresses?.[0]?.email_address ?? null
-      : u.email_addresses?.[0]?.email_address ?? null;
-    const phone = u.primary_phone_number_id
-      ? u.phone_numbers?.find((p) => p.phone_number)?.phone_number
-        ?? u.phone_numbers?.[0]?.phone_number ?? null
-      : u.phone_numbers?.[0]?.phone_number ?? null;
+    const primaryEmail = u.email_addresses?.find(e => e.id === u.primary_email_address_id);
+    const primaryPhone = u.phone_numbers?.find(p => p.id === u.primary_phone_number_id);
+    // Only verified contact details may claim a pre-existing Telegram/account row.
+    const email = primaryEmail?.verification?.status === 'verified' ? primaryEmail.email_address : null;
+    const phone = primaryPhone?.verification?.status === 'verified' ? primaryPhone.phone_number : null;
     const name = [u.first_name, u.last_name].filter(Boolean).join(' ') || null;
     const metaRole = typeof u.public_metadata?.role === 'string' ? u.public_metadata.role : null;
     return { email, phone, name, role: metaRole === 'admin' ? 'admin' : null };
@@ -249,14 +246,14 @@ async function verifyUser(req: Request): Promise<VerifiedUser> {
   if (!sub) return { ok: false, status: 401, detail: 'invalid or expired session' };
 
   const profile = await clerkUserProfile(sub);
-  const { data: ensured, error: ensureErr } = await client().rpc('app_ensure_user', {
-    p_auth_user_id: sub,
+  const { data: ensured, error: ensureErr } = await client().rpc('app_ensure_clerk_user', {
+    p_clerk_user_id: sub,
     p_email: profile.email,
     p_phone: profile.phone,
     p_name: profile.name,
   });
   if (ensureErr || !ensured || typeof ensured !== 'object' || !('id' in (ensured as object))) {
-    console.error('app_ensure_user failed', ensureErr);
+    console.error(JSON.stringify({event:'account_lookup_failed',request_id:ACTIVE_REQUEST_ID,code:ensureErr?.code}));
     return { ok: false, status: 500, detail: 'account lookup failed' };
   }
   const row = ensured as { id: string; role: string };
@@ -1628,7 +1625,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return json(data);
     }
     if (path === '/api/v1/dashboard/complaints' && req.method === 'GET') {
-      const denied = requireStaff(req);
+      const denied = await requireStaffOrAdmin(req);
       if (denied) return denied;
       const sb = client();
       const { data, error } = await sb.rpc('app_dashboard_complaints', {
@@ -1690,9 +1687,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const v = await verifyUser(req);
       if (!v.ok) return json({ detail: v.detail }, v.status);
       const sb = client();
-      const { data, error } = await sb.rpc('app_me', {
+      const { data, error } = await sb.rpc('app_passenger_dashboard', {
         p_user_id: v.userId,
-        p_limit: Number(q.get('limit') ?? 20),
+        p_limit: Number(q.get('limit') ?? 50),
+        p_offset: Number(q.get('offset') ?? 0),
+        p_status: q.get('status') || null,
       });
       if (error) return mapDbError(error);
       return json(data);

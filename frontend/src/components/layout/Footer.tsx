@@ -73,7 +73,7 @@ export const Footer: React.FC = () => {
             </ul>
             <div className="pt-2">
               <Link
-                to="/login"
+              to="/login?mode=staff"
                 className="text-[12px] font-mono text-[var(--brand)] hover:underline transition-colors"
               >
                 {tx("Depot Staff Login →")}</Link>

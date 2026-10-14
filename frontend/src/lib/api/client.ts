@@ -36,9 +36,11 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), path === '/api/v1/extract/ticket' ? 60000 : 15000);
   const headers = new Headers(init?.headers);
-  const token = await bearerToken();
-  if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
   try {
+    if (!headers.has('Authorization')) {
+      const token = await bearerToken();
+      if (token) headers.set('Authorization', `Bearer ${token}`);
+    }
     const res = await fetch(`${BASE}${path}`, { ...init, headers, signal: ctrl.signal });
     if (!res.ok) {
       const payload = await res.json().catch(() => null);
@@ -121,6 +123,9 @@ export interface BackendMe {
     sla_breached: number;
     ticket_receipts: number;
     trips_saved: number;
+    closed?: number;
+    in_review?: number;
+    escalated?: number;
   };
   recent_complaints: Array<{
     reference_id: string;
@@ -134,6 +139,12 @@ export interface BackendMe {
     has_ticket: boolean;
     sla_breached: boolean;
     created_at: string;
+    updated_at?: string;
+    description?: string;
+    location_text?: string | null;
+    sla_due_at?: string | null;
+    latest_action?: string | null;
+    latest_action_at?: string | null;
   }>;
   trips: Array<{
     route_id: string | null;
@@ -142,6 +153,13 @@ export interface BackendMe {
     use_count: number;
     last_used_at: string;
   }>;
+  activity?: Array<{reference_id:string;from_status:string|null;to_status:string;note:string|null;created_at:string}>;
+  monthly_activity?: Array<{month:string;filed:number;resolved:number}>;
+  by_category?: Array<{category:string;count:number}>;
+  has_more?: boolean;
+  filtered_total?: number;
+  offset?: number;
+  limit?: number;
 }
 
 // -- /api/v1/admin/analytics -------------------------------------------------

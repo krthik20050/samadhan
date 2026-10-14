@@ -110,7 +110,7 @@ export const Header: React.FC = () => {
                   </Link>
                 ) : (
                   <Link to="/account" className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-white text-[#171A19] text-[13px] font-medium border border-[#D9D7D0]">
-                    <User className="w-3.5 h-3.5 text-[#164E48]" />
+                    {user?.imageUrl?<img src={user.imageUrl} alt="" className="w-6 h-6 rounded-full object-cover"/>:<User className="w-3.5 h-3.5 text-[#164E48]"/>}
                     <span className="max-w-[100px] truncate">{user?.name}</span>
                   </Link>
                 )}
@@ -186,7 +186,7 @@ export const Header: React.FC = () => {
             {isAuthenticated ? (
               <div className="pt-2 border-t border-[#D9D7D0] flex items-center justify-between">
                 <span className="text-sm font-semibold text-[#171A19] flex items-center gap-2">
-                  <User className="w-4 h-4 text-[#164E48]" />
+                  {user?.imageUrl?<img src={user.imageUrl} alt="" className="w-6 h-6 rounded-full object-cover"/>:<User className="w-4 h-4 text-[#164E48]"/>}
                   <span>{user?.name}</span>
                 </span>
                 <button

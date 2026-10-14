@@ -24,6 +24,7 @@ build/
 next-env.d.ts
 
 # Misc
+/private-admin-access.txt
 coverage/
 .DS_Store
 Thumbs.db

@@ -1,6 +1,6 @@
 import { useText } from '../hooks/useText';
 import React, { useState } from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { clerkEnabled } from '../lib/clerk';
 import { SignInButton, SignUpButton } from '@clerk/react';
@@ -22,22 +22,24 @@ export const Login: React.FC = () => {
   const tx = useText();
   const navigate = useNavigate();
   const location = useLocation();
+  const [loginParams] = useSearchParams();
   const { login, isAuthenticated, isAdmin } = useAuth();
 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [mode, setMode] = useState<'clerk' | 'staff'>((location.state as {from?: string} | null)?.from?.startsWith('/admin') ? 'staff' : clerkEnabled ? 'clerk' : 'staff');
+  const [mode, setMode] = useState<'clerk' | 'staff'>(loginParams.get('mode')==='staff'||(location.state as {from?: string} | null)?.from?.startsWith('/admin') ? 'staff' : clerkEnabled ? 'clerk' : 'staff');
 
   const from = (location.state as { from?: string } | null)?.from;
 
   // If already signed in, route to the right portal.
   React.useEffect(() => {
     if (isAuthenticated) {
+      if (mode === 'staff' && !isAdmin) return;
       navigate(isAdmin ? '/admin/depot' : from && !from.startsWith('/admin') ? from : '/account', { replace: true });
     }
-  }, [isAuthenticated, isAdmin, navigate, from]);
+  }, [isAuthenticated, isAdmin, navigate, from, mode]);
 
   const handleStaffSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

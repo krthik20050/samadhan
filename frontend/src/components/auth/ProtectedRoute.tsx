@@ -7,7 +7,7 @@ import { Button } from '../common/Button';
 
 export const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
   const tx = useText();
-  const { isAuthenticated, isAdmin, user, logout, isLoading } = useAuth();
+  const { isAuthenticated, isAdmin, user, isLoading } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -45,7 +45,7 @@ export const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({ chi
           </div>
 
           <div className="pt-2 space-y-3">
-            <Link to="/login" onClick={logout} className="block">
+            <Link to="/login?mode=staff" className="block">
               <Button variant="primary" size="md" fullWidth icon={<LogOut className="w-4 h-4" />}>
                 {tx("Sign In with Depot Credentials")}</Button>
             </Link>
