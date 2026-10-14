@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth as useClerkAuth, SignInButton, UserButton } from '@clerk/react';
 import { api, BackendUnavailable, type BackendMe } from '../lib/api/client';
 import { clerkEnabled } from '../lib/clerk';
 import { Button } from '../components/common/Button';
-import { Input } from '../components/common/Input';
 import { ReferenceNumber } from '../components/common/ReferenceNumber';
 import {
   FileText,
@@ -40,10 +39,7 @@ function StatusDot({ status }: { status: string }) {
  * Passenger account — everything one person owns, in one place.
  *
  * Identity: Clerk session (Google / email code). The Clerk JWT is verified
- * server-side, which merges the account with any Telegram-bot identity that
- * shares the same phone/email — so trips and complaints from the bot show
- * up here too. Without a Clerk key configured, the legacy Telegram chat
- * linking still works.
+ * server-side, which keeps account-owned complaints and trips together.
  */
 
 const CHAT_KEY = 'samadhan_chat_id';
@@ -107,8 +103,8 @@ function StatCard({
 export const MyAccount: React.FC = () => {
   const { isSignedIn, isLoaded } = clerkEnabled ? useClerkAuth() : { isSignedIn: false, isLoaded: true };
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [chatId, setChatId] = useState<string | null>(getStoredChatId());
-  const [manualInput, setManualInput] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [me, setMe] = useState<BackendMe | null>(null);
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -147,7 +143,7 @@ export const MyAccount: React.FC = () => {
     } catch (e) {
       if (e instanceof BackendUnavailable) setError('Cannot reach the server — try again shortly.');
       else if (String(e).includes('401')) {
-        setError('Your Telegram account is not linked to a signed-in web account. Sign in with the same email or phone you used in the bot.');
+        setError('Your account is not linked to a signed-in web account. Sign in with the same email or phone you used when filing.');
       } else setError('Could not load your data.');
     } finally {
       setLoading(false);
@@ -211,7 +207,6 @@ export const MyAccount: React.FC = () => {
             <p className="mt-1 text-[13px] text-[var(--text-secondary)]">
               {p?.display_name || 'Passenger'}
               {p?.email ? ` · ${p.email}` : ''}
-              {p?.telegram_chat_id ? ` · Telegram linked (${p.telegram_chat_id})` : ''}
               {' · '}Member since{' '}
               {p?.member_since ? new Date(p.member_since).toLocaleDateString() : '—'}
             </p>
@@ -249,11 +244,11 @@ export const MyAccount: React.FC = () => {
           ) : complaints.length === 0 ? (
             <div className="mt-3 p-4 rounded-[8px] bg-[var(--surface-primary)] border border-[var(--border-standard)]">
               <p className="text-sm text-[var(--text-secondary)]">
-                Nothing yet. File your first complaint —{' '}
+                Nothing yet. File your first complaint{' '}
                 <Link to="/file-complaint" className="text-[var(--brand)] font-semibold hover:underline">
                   from the web form
-                </Link>{' '}
-                or via the Telegram bot. Filed while signed in, they appear here automatically.
+                </Link>
+                . Filed while signed in, it appears here automatically.
               </p>
             </div>
           ) : (
@@ -287,7 +282,7 @@ export const MyAccount: React.FC = () => {
             <p className="mt-3 text-sm text-[var(--text-secondary)]">Loading…</p>
           ) : trips.length === 0 ? (
             <p className="mt-3 text-sm text-[var(--text-secondary)]">
-              No trips yet — file a complaint in the bot and your route is remembered here.
+              No trips yet — file a complaint and your route will be remembered here.
             </p>
           ) : (
             <div className="mt-3 space-y-2">
@@ -319,8 +314,7 @@ export const MyAccount: React.FC = () => {
         <h1 className="text-2xl font-extrabold tracking-tight">My Account</h1>
         <p className="mt-3 text-[15px] text-[var(--text-secondary)] leading-relaxed">
           Sign in to see every request you have filed, your reference IDs, their live status, and
-          your saved trips — including anything filed through the Telegram bot on the same phone
-          number.
+          your saved trips and live complaint status.
         </p>
         {!isLoaded ? (
           <p className="mt-6 text-sm text-[var(--text-secondary)]">Loading sign-in…</p>
@@ -338,27 +332,16 @@ export const MyAccount: React.FC = () => {
     );
   }
 
-  // -- Demo mode (no Clerk key): legacy Telegram chat linking -----------------
+  // -- Demo mode (no Clerk key) -----------------------------------------------
   if (!chatId) {
     return (
       <div className="max-w-xl mx-auto py-10 px-4">
         <h1 className="text-2xl font-extrabold tracking-tight">My Account</h1>
         <p className="mt-3 text-[15px] text-[var(--text-secondary)] leading-relaxed">
-          Link your account in the SAMADHAN Telegram bot: send <code className="font-mono bg-[var(--surface-primary)] px-1 rounded">/link</code> to
-          {' '}@esamadhanbot and share your number in one tap. Then open the bot's
-          <b> “🌐 My account (web)” </b> button — it brings you here with your trips loaded.
+          Sign in to view your complaints, saved trips, and account activity.
         </p>
         <div className="mt-6 p-4 rounded-[8px] bg-[var(--surface-primary)] border border-[var(--border-standard)]">
-          <p className="text-[13px] font-semibold mb-2">Or paste your chat ID manually</p>
-          <Input
-            label="Telegram chat ID"
-            placeholder="e.g. 5044823931"
-            value={manualInput}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setManualInput(e.target.value)}
-          />
-          <div className="mt-3">
-            <Button onClick={() => saveChatId(manualInput)}>Load my data</Button>
-          </div>
+          <Button onClick={() => navigate('/login')}>Sign in</Button>
         </div>
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
       </div>

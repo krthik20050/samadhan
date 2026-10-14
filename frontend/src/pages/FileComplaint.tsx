@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useComplaintDraft } from '../hooks/useComplaintDraft';
+import { newIdempotencyKey } from '../context/ComplaintDraftContext';
 import { COMPLAINT_CATEGORIES } from '../lib/constants';
 import { complaintsService } from '../lib/api';
 import type { ComplaintCategory } from '../types';
@@ -11,73 +12,25 @@ import { Input } from '../components/common/Input';
 import { CategoryCard } from '../components/complaint/CategoryCard';
 import { VoiceRecorder } from '../components/voice/VoiceRecorder';
 import {
-  Mic,
-  FileEdit,
-  ArrowRight,
-  ArrowLeft,
+  AlertCircle,
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
+  MapPin,
+  Mic,
+  Paperclip,
+  Ticket,
   Upload,
   X,
-  CheckCircle2,
-  HelpCircle,
-  Droplets,
-  UserCheck,
-  ShieldAlert,
-  Wrench,
-  Clock,
-  Navigation,
-  Users,
-  HeartHandshake,
-  CreditCard,
-  Ticket,
 } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
-
-const ICON_MAP: Record<string, LucideIcon> = {
-  Sparkles: Droplets,
-  Droplets,
-  UserCheck,
-  ShieldAlert,
-  Wrench,
-  Clock,
-  Navigation,
-  Users,
-  HeartHandshake,
-  CreditCard,
-  HelpCircle,
-};
 
 const STATIC_KERALA_STOPS = [
-  'Alappuzha',
-  'Aluva',
-  'Angamaly',
-  'Attingal',
-  'Chalakudy',
-  'Changanassery',
-  'Ernakulam',
-  'Guruvayur',
-  'Kannur',
-  'Kasaragod',
-  'Kayamkulam',
-  'Kollam',
-  'Kottakkal',
-  'Kottayam',
-  'Kozhikode',
-  'Malappuram',
-  'Manjeri',
-  'Muvattupuzha',
-  'Palakkad',
-  'Payyanur',
-  'Perinthalmanna',
-  'Ponnani',
-  'Sultan Bathery',
-  'Thalassery',
-  'Thiruvananthapuram',
-  'Thodupuzha',
-  'Thrissur',
-  'Tirur',
-  'Vatakara',
+  'Alappuzha', 'Aluva', 'Angamaly', 'Attingal', 'Chalakudy', 'Changanassery',
+  'Ernakulam', 'Guruvayur', 'Kannur', 'Kasaragod', 'Kayamkulam', 'Kollam',
+  'Kottakkal', 'Kottayam', 'Kozhikode', 'Malappuram', 'Manjeri',
+  'Muvattupuzha', 'Palakkad', 'Payyanur', 'Perinthalmanna', 'Ponnani',
+  'Sultan Bathery', 'Thalassery', 'Thiruvananthapuram', 'Thodupuzha',
+  'Thrissur', 'Tirur', 'Vatakara',
 ];
 
 const detectCategoryFromText = (text: string): ComplaintCategory | null => {
@@ -95,691 +48,308 @@ const detectCategoryFromText = (text: string): ComplaintCategory | null => {
 
 export const FileComplaint: React.FC = () => {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const { language } = useLanguage();
-  const { draft, updateDraft } = useComplaintDraft();
-
-  const stepParam = searchParams.get('step');
-  const [step, setStep] = useState<1 | 2>(stepParam === '2' ? 2 : 1);
-
-  const modeParam = searchParams.get('mode');
-  const catParam = searchParams.get('cat') as ComplaintCategory;
-  const initialCategory =
-    catParam && COMPLAINT_CATEGORIES.some((c) => c.id === catParam)
-      ? catParam
-      : draft.category || 'cleanliness';
-
-  const [inputMode, setInputMode] = useState<'type' | 'voice'>(
-    modeParam === 'voice' ? 'voice' : 'type'
-  );
-  const [selectedCategory, setSelectedCategory] = useState<ComplaintCategory>(initialCategory);
-  const [hasManuallySelectedCat, setHasManuallySelectedCat] = useState(Boolean(catParam));
-  const [showAllCategories, setShowAllCategories] = useState(false);
-
-  // Form Fields
+  const { t, language } = useLanguage();
+  const { draft, updateDraft, setLastSubmittedComplaint } = useComplaintDraft();
   const [description, setDescription] = useState(draft.description || '');
   const [origin, setOrigin] = useState(draft.origin || '');
   const [destination, setDestination] = useState(draft.destination || '');
   const [via, setVia] = useState(draft.via || '');
   const [busNumber, setBusNumber] = useState(draft.busNumber || '');
   const [location, setLocation] = useState(draft.location || '');
-  const [evidenceFiles, setEvidenceFiles] = useState<string[]>(draft.evidenceFiles || []);
-  // Ticket-first flow (bot parity): upload a ticket photo, the vision slot
-  // fills bus/route/date automatically; the photo itself is proof of travel.
+  const [selectedCategory, setSelectedCategory] = useState<ComplaintCategory>(draft.category || 'cleanliness');
+  const [hasSelectedCategory, setHasSelectedCategory] = useState(Boolean(draft.category));
+  const [showCategories, setShowCategories] = useState(false);
+  const [showVoice, setShowVoice] = useState(false);
+  const [phone, setPhone] = useState(draft.contactPhone || '');
+  const [channel, setChannel] = useState<'whatsapp' | 'sms' | 'email'>(draft.preferredContactChannel || 'whatsapp');
+  const [keralaStops, setKeralaStops] = useState(STATIC_KERALA_STOPS);
   const [ticketStatus, setTicketStatus] = useState<'idle' | 'reading' | 'read' | 'failed' | 'unavailable'>(
-    draft.ticketExtracted ? 'read' : 'idle'
+    draft.ticketExtracted ? 'read' : 'idle',
   );
   const [ticketFields, setTicketFields] = useState<string[]>([]);
+  const [evidenceFiles, setEvidenceFiles] = useState(draft.evidenceFiles || []);
   const [uploadedEvidence, setUploadedEvidence] = useState(draft.uploadedEvidence || []);
   const [uploadingEvidence, setUploadingEvidence] = useState(false);
-  const [showMoreDetails, setShowMoreDetails] = useState<boolean>(
-    Boolean(draft.via || draft.busNumber || (draft.location && draft.location !== 'Onboard bus') || (draft.evidenceFiles && draft.evidenceFiles.length > 0))
-  );
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [idempotencyKey] = useState(() => draft.idempotencyKey || newIdempotencyKey());
 
-  const [validationError, setValidationError] = useState<string | null>(null);
-
-  // Dataset-backed stop suggestions (505 official KSRTC stations from the
-  // scrape, via GET /api/v1/routes). Falls back to the static list offline.
-  const [keralaStops, setKeralaStops] = useState<string[]>(STATIC_KERALA_STOPS);
   useEffect(() => {
     let cancelled = false;
-    lookupService
-      .searchRoutes('', 200)
-      .then((routes) => {
-        if (cancelled || routes.length === 0) return;
-        const stops = new Set<string>();
-        for (const r of routes) {
-          stops.add(r.origin);
-          stops.add(r.destination);
-        }
-        const merged = [...stops].sort((a, b) => a.localeCompare(b));
-        if (merged.length >= STATIC_KERALA_STOPS.length) setKeralaStops(merged);
-      })
-      .catch(() => {
-        /* offline: keep static list */
+    lookupService.searchRoutes('', 200).then((routes) => {
+      if (cancelled || routes.length === 0) return;
+      const stops = new Set<string>();
+      routes.forEach((route) => {
+        stops.add(route.origin);
+        stops.add(route.destination);
       });
-    return () => {
-      cancelled = true;
-    };
+      setKeralaStops([...stops].sort((a, b) => a.localeCompare(b)));
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
   }, []);
 
-  const activeCategoryMeta =
-    COMPLAINT_CATEGORIES.find((c) => c.id === selectedCategory) || COMPLAINT_CATEGORIES[0];
-  const CategoryIcon = ICON_MAP[activeCategoryMeta.iconName] || HelpCircle;
+  const activeCategory = COMPLAINT_CATEGORIES.find((category) => category.id === selectedCategory) || COMPLAINT_CATEGORIES[0];
 
-  const handleDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const text = e.target.value;
-    setDescription(text);
-    if (!hasManuallySelectedCat) {
-      const detected = detectCategoryFromText(text);
-      if (detected) {
-        setSelectedCategory(detected);
-      }
-    }
-  };
-
-  const handleProceedToStep2 = () => {
-    setValidationError(null);
-    if (!description.trim()) {
-      setValidationError('Please describe what happened before continuing.');
-      return;
-    }
-
+  const syncDraft = (extra: Partial<typeof draft> = {}) => {
     updateDraft({
+      category: selectedCategory,
       description: description.trim(),
-      category: selectedCategory,
-    });
-
-    setStep(2);
-    setSearchParams({ step: '2' });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleBackToStep1 = () => {
-    setValidationError(null);
-    setStep(1);
-    setSearchParams({ step: '1' });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleProceedToReview = (e: React.FormEvent) => {
-    e.preventDefault();
-    setValidationError(null);
-
-    if (!origin.trim() || !destination.trim()) {
-      setValidationError('Please provide both the starting and destination stops.');
-      return;
-    }
-
-    updateDraft({
-      category: selectedCategory,
       origin: origin.trim(),
       destination: destination.trim(),
       via: via.trim(),
       busNumber: busNumber.trim(),
       location: location.trim() || 'Onboard bus',
-      description: description.trim(),
+      contactPhone: phone.trim(),
+      preferredContactChannel: channel,
       evidenceFiles,
       uploadedEvidence,
-      travelDate: draft.travelDate ?? null,
-      ticketExtracted: draft.ticketExtracted ?? null,
+      idempotencyKey,
+      ...extra,
     });
-
-    navigate('/file-complaint/review');
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleDescriptionChange = (value: string) => {
+    setDescription(value);
+    if (!hasSelectedCategory) {
+      const detected = detectCategoryFromText(value);
+      if (detected) setSelectedCategory(detected);
+    }
+  };
+
+  const handleTicketUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
     if (!file) return;
-    e.target.value = ''; // allow re-selecting the same file
-    setUploadingEvidence(true);
-    complaintsService
-      .uploadEvidence(file)
-      .then((up) => {
-        setUploadedEvidence((prev) => [...prev, { ...up, name: file.name }]);
-        setEvidenceFiles((prev) => [...prev, file.name]);
-      })
-      .catch(() => {
-        setValidationError(
-          `Could not upload ${file.name} (max 20 MB, images/PDF/videos). It was not attached.`
-        );
-      })
-      .finally(() => setUploadingEvidence(false));
-  };
-
-  const handleRemoveFile = (indexToRemove: number) => {
-    setEvidenceFiles((prev) => prev.filter((_, idx) => idx !== indexToRemove));
-    setUploadedEvidence((prev) => prev.filter((_, idx) => idx !== indexToRemove));
-  };
-
-  /** Ticket photo -> vision slot -> auto-fill bus/route (+ keep photo as proof). */
-  const handleTicketUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = '';
+    setError(null);
     setTicketStatus('reading');
     void (async () => {
       const extracted = await complaintsService.extractTicket(file);
       const found = extracted
-        ? Object.entries(extracted)
-            .filter(([, v]) => v !== null && v !== '' && v !== false)
-            .map(([k]) => k)
+        ? Object.entries(extracted).filter(([, value]) => value !== null && value !== '' && value !== false).map(([key]) => key)
         : [];
       if (extracted && found.length > 0) {
         setTicketStatus('read');
         setTicketFields(found);
-        updateDraft({
-          ticketExtracted: extracted as unknown as Record<string, unknown>,
-          travelDate: extracted.travel_date ?? null,
-          busNumber: extracted.bus_number ?? busNumber,
-          origin: extracted.origin || origin,
-          destination: extracted.destination || destination,
-        });
         if (extracted.bus_number) setBusNumber(extracted.bus_number);
         if (extracted.origin) setOrigin(extracted.origin);
         if (extracted.destination) setDestination(extracted.destination);
+        syncDraft({
+          ticketExtracted: extracted as unknown as Record<string, unknown>,
+          travelDate: extracted.travel_date,
+          busNumber: extracted.bus_number || busNumber,
+          origin: extracted.origin || origin,
+          destination: extracted.destination || destination,
+        });
       } else {
-        // Slot down ('unavailable') or photo unreadable ('failed') — both fail soft.
         setTicketStatus(extracted ? 'failed' : 'unavailable');
       }
-      // Photo is proof of travel either way (mirrors the bot).
       try {
-        const up = await complaintsService.uploadEvidence(file);
-        setUploadedEvidence((prev) => [...prev, { ...up, name: file.name }]);
-        setEvidenceFiles((prev) => [...prev, file.name]);
+        const uploaded = await complaintsService.uploadEvidence(file);
+        setUploadedEvidence((current) => [...current, { ...uploaded, name: file.name }]);
+        setEvidenceFiles((current) => [...current, file.name]);
       } catch {
-        /* offline: complaint still files without the photo */
-      }      })();
+        setError(t('formUploadError'));
+      }
+    })();
+  };
+
+  const handleEvidenceUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setUploadingEvidence(true);
+    setError(null);
+    complaintsService.uploadEvidence(file).then((uploaded) => {
+      setUploadedEvidence((current) => [...current, { ...uploaded, name: file.name }]);
+      setEvidenceFiles((current) => [...current, file.name]);
+    }).catch(() => setError(t('formUploadError'))).finally(() => setUploadingEvidence(false));
+  };
+
+  const removeEvidence = (index: number) => {
+    setEvidenceFiles((current) => current.filter((_, itemIndex) => itemIndex !== index));
+    setUploadedEvidence((current) => current.filter((_, itemIndex) => itemIndex !== index));
+  };
+
+  const handleVoiceComplete = (result: { transcript: string; extracted: Partial<typeof draft> }) => {
+    setDescription(result.extracted.description || result.transcript);
+    if (result.extracted.category) setSelectedCategory(result.extracted.category);
+    if (result.extracted.origin) setOrigin(result.extracted.origin);
+    if (result.extracted.destination) setDestination(result.extracted.destination);
+    if (result.extracted.via) setVia(result.extracted.via);
+    if (result.extracted.busNumber) setBusNumber(result.extracted.busNumber);
+    if (result.extracted.location) setLocation(result.extracted.location);
+    setShowVoice(false);
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError(null);
+    if (!description.trim()) return setError(t('formDescriptionRequired'));
+    if (!origin.trim() || !destination.trim()) return setError(t('formRouteRequired'));
+    setSubmitting(true);
+    syncDraft();
+    try {
+      const result = await complaintsService.submitComplaint({
+        category: selectedCategory,
+        route: { origin: origin.trim(), destination: destination.trim(), via: via.trim() },
+        busNumber: busNumber.trim(),
+        location: location.trim() || 'Onboard bus',
+        description: description.trim(),
+        audioTranscript: draft.audioTranscript,
+        contactPhone: phone.trim() || undefined,
+        preferredContactChannel: channel,
+        travelDate: draft.travelDate ?? null,
+        ticketExtracted: draft.ticketExtracted ?? null,
+        evidence: uploadedEvidence.map(({ storage_path, mime_type, size_bytes }) => ({ storage_path, mime_type, size_bytes })),
+        idempotencyKey,
+      });
+      setLastSubmittedComplaint(result);
+      navigate('/file-complaint/success');
+    } catch {
+      setError(t('formSubmitError'));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
-    <div className="app-container py-12 sm:py-16 text-left max-w-3xl">
-      {/* HTML Datalist for Clean Route Autocomplete */}
-      <datalist id="kerala-stops">
-        {keralaStops.map((stop) => (
-          <option key={stop} value={stop} />
-        ))}
-      </datalist>
+    <form onSubmit={handleSubmit} className="app-container py-10 sm:py-14 text-left max-w-4xl">
+      <datalist id="kerala-stops">{keralaStops.map((stop) => <option key={stop} value={stop} />)}</datalist>
+      <div className="mb-8 space-y-2">
+        <div className="text-[12px] font-mono font-bold tracking-wider text-[var(--brand)] uppercase">{t('formEyebrow')}</div>
+        <h1 className="text-[34px] sm:text-[46px] font-extrabold text-[var(--text-primary)] tracking-tight font-['Plus_Jakarta_Sans'] leading-tight">
+          {t('formHeading')}
+        </h1>
+        <p className="text-[16px] text-[var(--text-secondary)] max-w-2xl leading-relaxed">{t('formSubheading')}</p>
+      </div>
 
-      {/* Validation Message */}
-      {validationError && (
-        <div className="mb-6 p-3.5 rounded-[8px] bg-[var(--surface-primary)] border border-[var(--semantic-error)] text-[var(--semantic-error)] text-[14px]">
-          {validationError}
+      {error && (
+        <div className="mb-6 p-4 rounded-[10px] bg-[var(--surface-primary)] border border-[var(--semantic-error)] text-[var(--semantic-error)] text-[14px] flex gap-2">
+          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" /><span>{error}</span>
         </div>
       )}
 
-      {/* =================================================================
-          STEP 01 / 03: TELL US WHAT HAPPENED
-          ================================================================= */}
-      {step === 1 && (
-        <div className="space-y-8">
-          {/* Header */}
-          <div className="space-y-2">
-            <div className="text-[12px] font-mono font-bold tracking-wider text-[var(--brand)] uppercase">
-              STEP 01 / 03
+      <div className="space-y-8">
+        <section className="space-y-4">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <p className="text-[11px] font-mono font-bold tracking-wider text-[var(--brand)] uppercase">{t('formProblemLabel')}</p>
+              <h2 className="text-[22px] font-bold text-[var(--text-primary)]">{t('formProblemHeading')}</h2>
             </div>
-            <h1 className="text-[34px] sm:text-[42px] font-extrabold text-[var(--text-primary)] tracking-tight font-['Plus_Jakarta_Sans'] leading-tight">
-              Tell us what happened.
-            </h1>
-            <p className="text-[16px] text-[var(--text-secondary)] max-w-xl leading-relaxed">
-              Describe the issue in your own words. You can type or speak.
-            </p>
-          </div>
-
-          {/* Input Method Toggle: Type or Speak (Quiet row, no 'Speak Fastest') */}
-          <div className="flex items-center gap-6 border-b border-[var(--border-standard)] text-[14px]">
-            <button
-              type="button"
-              onClick={() => setInputMode('type')}
-              className={`pb-3 font-medium transition-colors cursor-pointer relative flex items-center gap-2 ${
-                inputMode === 'type'
-                  ? 'text-[var(--brand)] font-semibold'
-                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-              }`}
-            >
-              <FileEdit className="w-4 h-4" />
-              <span>Type</span>
-              {inputMode === 'type' && (
-                <span className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-[var(--brand)]" />
-              )}
+            <button type="button" onClick={() => setShowVoice((current) => !current)} className="inline-flex items-center gap-2 text-[13px] font-semibold text-[var(--brand)] hover:underline">
+              <Mic className="w-4 h-4" />{showVoice ? t('formHideVoice') : t('formSpeak')}
             </button>
-
-            <button
-              type="button"
-              onClick={() => setInputMode('voice')}
-              className={`pb-3 font-medium transition-colors cursor-pointer relative flex items-center gap-2 ${
-                inputMode === 'voice'
-                  ? 'text-[var(--brand)] font-semibold'
-                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-              }`}
-            >
+          </div>
+          <div className="relative">
+            <textarea
+              rows={5}
+              value={description}
+              onChange={(event) => handleDescriptionChange(event.target.value)}
+              placeholder={t('formDescriptionPlaceholder')}
+              className="w-full bg-[var(--surface-primary)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded-[12px] p-4 pr-14 text-[15px] focus:outline-none focus:border-[var(--brand)] placeholder:text-[var(--text-muted)] leading-relaxed"
+            />
+            <button type="button" onClick={() => setShowVoice(true)} aria-label={t('formSpeak')} className={`absolute right-3 top-3 w-10 h-10 rounded-full grid place-items-center border transition-colors ${showVoice ? 'bg-[var(--brand)] text-white border-[var(--brand)]' : 'bg-[var(--bg-primary)] text-[var(--brand)] border-[var(--border-standard)] hover:border-[var(--brand)]'}`}>
               <Mic className="w-4 h-4" />
-              <span>Speak</span>
-              {inputMode === 'voice' && (
-                <span className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-[var(--brand)]" />
-              )}
             </button>
           </div>
+          {showVoice && <VoiceRecorder onTranscriptionComplete={handleVoiceComplete} onCancel={() => setShowVoice(false)} />}
+        </section>
 
-          {/* Mode A: Typed Input */}
-          {inputMode === 'type' && (
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-[12px] font-mono font-bold uppercase tracking-wider text-[var(--text-muted)] block">
-                  DESCRIBE THE PROBLEM
-                </label>
-                <textarea
-                  rows={5}
-                  value={description}
-                  onChange={handleDescriptionChange}
-                  className="w-full bg-[var(--surface-primary)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded-[10px] p-4 text-[15px] focus:outline-none focus:border-[var(--brand)] placeholder:text-[var(--text-muted)] leading-relaxed"
-                  placeholder="e.g. Bus arrived 45 minutes late with no announcement, or driver was overtaking dangerously on the highway..."
-                  autoFocus
-                />
-              </div>
-
-              {/* Ticket-first flow (bot parity): photo -> vision slot fills the details */}
-              <div className="p-4 rounded-[10px] bg-[var(--surface-primary)] border border-[var(--border-standard)] space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-[12px] font-mono uppercase tracking-wider text-[var(--brand)] font-bold">
-                      Have your ticket photo?
-                    </div>
-                    <p className="text-[13px] text-[var(--text-secondary)] mt-0.5">
-                      We read it and fill the bus, route and date for you. Optional.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3">
-                  <input
-                    type="file"
-                    id="ticket-photo"
-                    accept="image/*"
-                    onChange={handleTicketUpload}
-                    className="hidden"
-                  />
-                  <label
-                    htmlFor="ticket-photo"
-                    className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-[8px] border text-[13px] font-medium cursor-pointer transition-colors ${
-                      ticketStatus === 'reading'
-                        ? 'bg-[var(--surface-secondary)] border-[var(--brand)] text-[var(--brand)]'
-                        : 'bg-[var(--bg-primary)] border-[var(--border-standard)] text-[var(--text-primary)] hover:bg-[var(--surface-secondary)]'
-                    }`}
-                  >
-                    <Ticket className="w-3.5 h-3.5 text-[var(--brand)]" />
-                    <span>{ticketStatus === 'reading' ? 'Reading ticket…' : 'Upload ticket photo'}</span>
-                  </label>
-                  <span className="text-[11px] text-[var(--text-muted)] font-mono">JPG, PNG up to 20MB</span>
-                </div>
-
-                {ticketStatus === 'read' && (
-                  <div className="flex items-start gap-2 text-[13px]">
-                    <CheckCircle2 className="w-4 h-4 text-[var(--brand)] shrink-0 mt-0.5" />
-                    <div>
-                      <span className="text-[var(--text-primary)] font-medium">Ticket read.</span>{' '}
-                      <span className="text-[var(--text-secondary)]">
-                        We filled in what we found below — please check it in the next step.
-                      </span>
-                      {ticketFields.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mt-1.5">
-                          {ticketFields.map((f) => (
-                            <span
-                              key={f}
-                              className="px-2 py-0.5 rounded-[6px] bg-[var(--bg-primary)] border border-[var(--border-standard)] font-mono text-[11px] text-[var(--text-secondary)]"
-                            >
-                              {f.replace(/_/g, ' ')}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {ticketStatus === 'failed' && (
-                  <div className="text-[13px] text-[var(--text-secondary)]">
-                    Couldn’t read that image — no problem, just fill the details yourself below.
-                  </div>
-                )}
-                {ticketStatus === 'unavailable' && (
-                  <div className="text-[13px] text-[var(--text-secondary)]">
-                    Ticket reading is offline right now — fill the details yourself; the photo was still saved as proof.
-                  </div>
-                )}
-              </div>
-
-              {/* Category Selection UX: Suggested category card + Change toggle */}
-              <div className="pt-2 space-y-3">
-                <div className="flex items-center justify-between text-[13px]">
-                  <span className="text-[var(--text-secondary)]">
-                    {hasManuallySelectedCat
-                      ? 'Selected category:'
-                      : 'Suggested from your description:'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowAllCategories((prev) => !prev)}
-                    className="text-[var(--brand)] font-medium hover:underline cursor-pointer"
-                  >
-                    {showAllCategories ? 'Keep this category' : 'Change category'}
-                  </button>
-                </div>
-
-                {/* Collapsed State: Single Clean Highlight Card */}
-                {!showAllCategories ? (
-                  <div className="p-3.5 rounded-[10px] bg-[var(--surface-primary)] border border-[var(--brand)] flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-[8px] bg-[var(--brand)] text-white flex items-center justify-center shrink-0">
-                        <CategoryIcon className="w-4 h-4 stroke-[2]" />
-                      </div>
-                      <div>
-                        <h4 className="text-[14px] font-bold text-[var(--text-primary)] leading-snug">
-                          {language === 'ml' ? activeCategoryMeta.labelMl : activeCategoryMeta.labelEn}
-                        </h4>
-                        <div className="text-[12px] text-[var(--text-secondary)]">
-                          {language === 'ml' ? activeCategoryMeta.labelEn : activeCategoryMeta.labelMl}
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowAllCategories(true)}
-                      className="text-[12px] font-medium text-[var(--brand)] hover:underline cursor-pointer"
-                    >
-                      Change
-                    </button>
-                  </div>
-                ) : (
-                  /* Expanded Grid of Categories */
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                    {COMPLAINT_CATEGORIES.map((cat) => (
-                      <CategoryCard
-                        key={cat.id}
-                        category={cat}
-                        compact={true}
-                        isSelected={selectedCategory === cat.id}
-                        onSelect={() => {
-                          setSelectedCategory(cat.id);
-                          setHasManuallySelectedCat(true);
-                          setShowAllCategories(false);
-                        }}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Primary & Secondary Actions */}
-              <div className="pt-6 border-t border-[var(--border-standard)] flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => setInputMode('voice')}
-                  className="text-[14px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] inline-flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Mic className="w-4 h-4 text-[var(--brand)]" />
-                  <span>Speak instead</span>
-                </button>
-
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="lg"
-                  onClick={handleProceedToStep2}
-                  icon={<ArrowRight className="w-4 h-4" />}
-                  iconPosition="right"
-                  className="font-semibold px-8"
-                >
-                  Continue to Journey →
-                </Button>
-              </div>
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-mono font-bold tracking-wider text-[var(--brand)] uppercase">{t('formCategoryLabel')}</p>
+              <h2 className="text-[22px] font-bold text-[var(--text-primary)]">{language === 'ml' ? activeCategory.labelMl : activeCategory.labelEn}</h2>
+            </div>
+            <button type="button" onClick={() => setShowCategories((current) => !current)} className="inline-flex items-center gap-1 text-[13px] font-semibold text-[var(--brand)]">
+              {showCategories ? t('formHideCategories') : t('formChangeCategory')}
+              {showCategories ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+          </div>
+          {showCategories && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {COMPLAINT_CATEGORIES.map((category) => (
+                <CategoryCard key={category.id} category={category} compact isSelected={selectedCategory === category.id} onSelect={() => {
+                  setSelectedCategory(category.id);
+                  setHasSelectedCategory(true);
+                  setShowCategories(false);
+                }} />
+              ))}
             </div>
           )}
+        </section>
 
-          {/* Mode B: Spoken Voice Intake */}
-          {inputMode === 'voice' && (
-            <div className="space-y-6">
-              <VoiceRecorder
-                onTranscriptionComplete={(result) => {
-                  setDescription(result.transcript);
-                  if (result.extracted.category) {
-                    setSelectedCategory(result.extracted.category);
-                  }
-                  if (result.extracted.origin) setOrigin(result.extracted.origin);
-                  if (result.extracted.destination) setDestination(result.extracted.destination);
-                  if (result.extracted.via) setVia(result.extracted.via);
-                  if (result.extracted.busNumber) setBusNumber(result.extracted.busNumber);
-
-                  updateDraft({
-                    ...result.extracted,
-                    description: result.transcript,
-                    audioTranscript: result.transcript,
-                  });
-                }}
-              />
-
-              {description && (
-                <div className="p-4 rounded-[10px] bg-[var(--surface-primary)] border border-[var(--border-standard)] space-y-3">
-                  <div className="text-[12px] font-mono uppercase tracking-wider text-[var(--brand)] font-bold">
-                    Here’s what we understood
-                  </div>
-                  <div>
-                    <span className="text-[11px] font-mono text-[var(--text-muted)] uppercase">Description:</span>
-                    <p className="text-[14px] text-[var(--text-primary)] mt-0.5 leading-relaxed">
-                      {description}
-                    </p>
-                  </div>
-                  <div className="pt-1 flex items-center justify-between text-[13px]">
-                    <span className="text-[var(--text-secondary)]">
-                      Suggested category: <strong className="text-[var(--text-primary)]">{activeCategoryMeta.labelEn}</strong>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setInputMode('type')}
-                      className="text-[var(--brand)] hover:underline"
-                    >
-                      Edit details
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <div className="pt-6 border-t border-[var(--border-standard)] flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => setInputMode('type')}
-                  className="text-[14px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] inline-flex items-center gap-1 cursor-pointer"
-                >
-                  <FileEdit className="w-4 h-4 text-[var(--brand)]" />
-                  <span>Type instead</span>
-                </button>
-
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="lg"
-                  onClick={handleProceedToStep2}
-                  disabled={!description.trim()}
-                  icon={<ArrowRight className="w-4 h-4" />}
-                  iconPosition="right"
-                  className="font-semibold px-8"
-                >
-                  Continue to Journey →
-                </Button>
-              </div>
+        <section className="space-y-4">
+          <div>
+            <p className="text-[11px] font-mono font-bold tracking-wider text-[var(--brand)] uppercase">{t('formTicketLabel')}</p>
+            <h2 className="text-[22px] font-bold text-[var(--text-primary)]">{t('formTicketHeading')}</h2>
+            <p className="text-[14px] text-[var(--text-secondary)] mt-1">{t('formTicketSubheading')}</p>
+          </div>
+          <div className="p-4 rounded-[12px] bg-[var(--surface-primary)] border border-[var(--border-standard)]">
+            <div className="flex flex-wrap items-center gap-3">
+              <input type="file" id="ticket-photo" accept="image/*" onChange={handleTicketUpload} className="hidden" />
+              <label htmlFor="ticket-photo" className="inline-flex items-center gap-2 px-3.5 py-2 rounded-[8px] border border-[var(--border-standard)] text-[13px] font-semibold cursor-pointer hover:border-[var(--brand)]">
+                <Ticket className="w-4 h-4 text-[var(--brand)]" />{ticketStatus === 'reading' ? t('formReadingTicket') : t('formUploadTicket')}
+              </label>
+              {ticketStatus === 'reading' && <div className="h-2 flex-1 min-w-[160px] rounded-full bg-[var(--bg-primary)] overflow-hidden"><div className="h-full w-2/3 rounded-full bg-[var(--brand)] animate-pulse" /></div>}
+              {ticketStatus === 'reading' && <span className="text-[12px] text-[var(--text-secondary)]">{t('formExtracting')}</span>}
             </div>
-          )}
-        </div>
-      )}
+            {ticketStatus === 'read' && <div className="mt-3 flex items-start gap-2 text-[13px] text-[var(--text-secondary)]"><CheckCircle2 className="w-4 h-4 text-[var(--brand)] mt-0.5 shrink-0" /><span>{t('formTicketRead')} {ticketFields.map((field) => field.replace(/_/g, ' ')).join(', ')}.</span></div>}
+            {(ticketStatus === 'failed' || ticketStatus === 'unavailable') && <p className="mt-3 text-[13px] text-[var(--text-secondary)]">{ticketStatus === 'failed' ? t('formTicketFailed') : t('formTicketUnavailable')}</p>}
+          </div>
+        </section>
 
-      {/* =================================================================
-          STEP 02 / 03: WHERE DID IT HAPPEN?
-          ================================================================= */}
-      {step === 2 && (
-        <form onSubmit={handleProceedToReview} className="space-y-8">
-          {/* Header */}
-          <div className="space-y-2">
-            <div className="text-[12px] font-mono font-bold tracking-wider text-[var(--brand)] uppercase">
-              STEP 02 / 03
+        <section className="space-y-4">
+          <div>
+            <p className="text-[11px] font-mono font-bold tracking-wider text-[var(--brand)] uppercase">{t('formJourneyLabel')}</p>
+            <h2 className="text-[22px] font-bold text-[var(--text-primary)]">{t('formJourneyHeading')}</h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input label={t('formFrom')} value={origin} onChange={(event) => setOrigin(event.target.value)} list="kerala-stops" placeholder={t('formFromPlaceholder')} />
+            <Input label={t('formTo')} value={destination} onChange={(event) => setDestination(event.target.value)} list="kerala-stops" placeholder={t('formToPlaceholder')} />
+            <Input label={t('formVia')} value={via} onChange={(event) => setVia(event.target.value)} placeholder={t('formOptionalPlaceholder')} />
+            <Input label={t('formBusNumber')} value={busNumber} onChange={(event) => setBusNumber(event.target.value)} placeholder={t('formBusPlaceholder')} />
+            <Input label={t('formLocation')} value={location} onChange={(event) => setLocation(event.target.value)} placeholder={t('formLocationPlaceholder')} />
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <div>
+            <p className="text-[11px] font-mono font-bold tracking-wider text-[var(--brand)] uppercase">{t('formEvidenceLabel')}</p>
+            <h2 className="text-[22px] font-bold text-[var(--text-primary)]">{t('formEvidenceHeading')}</h2>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <input type="file" id="evidence-upload" accept="image/*,video/*,application/pdf" onChange={handleEvidenceUpload} className="hidden" />
+            <label htmlFor="evidence-upload" className="inline-flex items-center gap-2 px-3.5 py-2 rounded-[8px] border border-[var(--border-standard)] text-[13px] font-semibold cursor-pointer hover:border-[var(--brand)]">
+              <Upload className="w-4 h-4 text-[var(--brand)]" />{uploadingEvidence ? t('formUploading') : t('formAddEvidence')}
+            </label>
+            {evidenceFiles.map((file, index) => <span key={`${file}-${index}`} className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-[7px] bg-[var(--surface-primary)] border border-[var(--border-standard)] text-[12px]"><Paperclip className="w-3.5 h-3.5" />{file}<button type="button" onClick={() => removeEvidence(index)} aria-label={`${t('formRemove')} ${file}`}><X className="w-3.5 h-3.5" /></button></span>)}
+          </div>
+        </section>
+
+        <section className="space-y-4 border-t border-[var(--border-standard)] pt-7">
+          <div>
+            <p className="text-[11px] font-mono font-bold tracking-wider text-[var(--brand)] uppercase">{t('formContactLabel')}</p>
+            <h2 className="text-[22px] font-bold text-[var(--text-primary)]">{t('formContactHeading')}</h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input label={t('formPhone')} type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder={t('formPhonePlaceholder')} />
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[13px] font-medium text-[var(--text-primary)]" htmlFor="contact-channel">{t('formContactChannel')}</label>
+              <select id="contact-channel" value={channel} onChange={(event) => setChannel(event.target.value as 'whatsapp' | 'sms' | 'email')} className="w-full bg-[var(--surface-primary)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded-[10px] py-2.5 px-3 text-[14px] h-[48px] focus:outline-none focus:border-[var(--brand)]">
+                <option value="whatsapp">{t('formWhatsapp')}</option>
+                <option value="sms">{t('formSms')}</option>
+                <option value="email">{t('formEmail')}</option>
+              </select>
             </div>
-            <h1 className="text-[34px] sm:text-[42px] font-extrabold text-[var(--text-primary)] tracking-tight font-['Plus_Jakarta_Sans'] leading-tight">
-              Where did it happen?
-            </h1>
-            <p className="text-[16px] text-[var(--text-secondary)] max-w-xl leading-relaxed">
-              Enter your starting and destination stops. Operating depot is assigned automatically based on route schedules.
-            </p>
           </div>
+        </section>
+      </div>
 
-          {/* Primary Route Inputs with Autocomplete */}
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input
-                label="From (Starting Stop) *"
-                placeholder="Search starting stop (e.g. Guruvayur)"
-                value={origin}
-                onChange={(e) => setOrigin(e.target.value)}
-                list="kerala-stops"
-                required
-                autoFocus
-              />
-              <Input
-                label="To (Destination Stop) *"
-                placeholder="Search destination (e.g. Kozhikode)"
-                value={destination}
-                onChange={(e) => setDestination(e.target.value)}
-                list="kerala-stops"
-                required
-              />
-            </div>
-
-            {/* Subtle Route Confirmation */}
-            {origin.trim() && destination.trim() && (
-              <div className="p-3 rounded-[8px] bg-[var(--surface-primary)] border border-[var(--border-standard)] flex items-center justify-between text-[13px]">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-[var(--brand)] shrink-0" />
-                  <span className="font-bold text-[var(--text-primary)]">
-                    {origin} → {destination}
-                  </span>
-                </div>
-                <span className="text-[12px] text-[var(--text-secondary)]">
-                  Operating depot will be determined automatically
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Progressive Disclosure Toggle */}
-          <div className="pt-2">
-            <button
-              type="button"
-              onClick={() => setShowMoreDetails((prev) => !prev)}
-              className="text-[13px] font-medium text-[var(--brand)] hover:underline inline-flex items-center gap-1 cursor-pointer py-1"
-            >
-              <span>{showMoreDetails ? 'Less details −' : 'More details +'}</span>
-              {showMoreDetails ? (
-                <ChevronUp className="w-3.5 h-3.5" />
-              ) : (
-                <ChevronDown className="w-3.5 h-3.5" />
-              )}
-            </button>
-
-            {showMoreDetails && (
-              <div className="mt-3 space-y-4 p-5 rounded-[10px] bg-[var(--surface-primary)] border border-[var(--border-standard)]">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Input
-                    label="Bus Registration (Optional)"
-                    placeholder="e.g. KL-15-A-4892"
-                    value={busNumber}
-                    onChange={(e) => setBusNumber(e.target.value)}
-                  />
-                  <Input
-                    label="Via / Corridor (Optional)"
-                    placeholder="e.g. Ponnani - Tirur"
-                    value={via}
-                    onChange={(e) => setVia(e.target.value)}
-                  />
-                </div>
-
-                <Input
-                  label="Location on Bus or Stop (Optional)"
-                  placeholder="e.g. Middle row seats / Near platform 2"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                />
-
-                {/* Quiet Supporting Evidence Upload */}
-                <div className="pt-2 space-y-2">
-                  <span className="text-[12px] font-mono uppercase tracking-wider text-[var(--text-muted)] block">
-                    Supporting photo or document (Optional)
-                  </span>
-
-                  <div className="flex flex-wrap items-center gap-3">
-                    <input
-                      type="file"
-                      id="evidence-file"
-                      accept="image/*,.pdf"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                    />
-                    <label
-                      htmlFor="evidence-file"
-                      className="inline-flex items-center gap-2 px-3.5 py-2 rounded-[8px] bg-[var(--bg-primary)] border border-[var(--border-standard)] text-[13px] font-medium text-[var(--text-primary)] hover:bg-[var(--surface-secondary)] cursor-pointer transition-colors"
-                    >
-                      <Upload className="w-3.5 h-3.5 text-[var(--brand)]" />
-                      <span>{uploadingEvidence ? 'Attaching…' : 'Attach file'}</span>
-                    </label>
-                    <span className="text-[11px] text-[var(--text-muted)] font-mono">
-                      JPG, PNG, PDF, video up to 20MB
-                    </span>
-                  </div>
-
-                  {evidenceFiles.length > 0 && (
-                    <div className="space-y-1.5 pt-1">
-                      {evidenceFiles.map((file, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-center justify-between p-2.5 rounded-[6px] bg-[var(--bg-primary)] border border-[var(--border-standard)] text-[13px]"
-                        >
-                          <span className="font-mono text-[var(--text-primary)]">{file}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveFile(idx)}
-                            className="text-[var(--text-secondary)] hover:text-[var(--semantic-error)] cursor-pointer"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Action Row */}
-          <div className="pt-6 border-t border-[var(--border-standard)] flex items-center justify-between">
-            <button
-              type="button"
-              onClick={handleBackToStep1}
-              className="text-[14px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] inline-flex items-center gap-1.5 cursor-pointer"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back to Step 1</span>
-            </button>
-
-            <Button
-              type="submit"
-              variant="primary"
-              size="lg"
-              icon={<ArrowRight className="w-4 h-4" />}
-              iconPosition="right"
-              className="font-semibold px-8"
-            >
-              Continue to Step 03: Review →
-            </Button>
-          </div>
-        </form>
-      )}
-    </div>
+      <div className="mt-9 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-t border-[var(--border-standard)] pt-6">
+        <div className="flex items-center gap-2 text-[12px] text-[var(--text-secondary)]"><MapPin className="w-4 h-4 text-[var(--brand)]" />{t('formPrivacy')}</div>
+        <Button type="submit" size="lg" isLoading={submitting} className="w-full sm:w-auto px-8">{submitting ? t('formSubmitting') : t('submitComplaint')}</Button>
+      </div>
+    </form>
   );
 };

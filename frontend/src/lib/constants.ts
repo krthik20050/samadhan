@@ -1,6 +1,5 @@
 import type { ComplaintCategory } from '../types';
 
-
 export interface CategoryMeta {
   id: ComplaintCategory;
   labelEn: string;

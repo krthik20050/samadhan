@@ -218,7 +218,7 @@ export const Header: React.FC = () => {
               fullWidth
               onClick={() => {
                 setMobileMenuOpen(false);
-                navigate('/file-complaint/voice');
+                navigate('/file-complaint');
               }}
               icon={<Mic className="w-4 h-4" />}
             >

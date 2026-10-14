@@ -66,7 +66,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   onTranscriptionComplete,
   onCancel,
 }) => {
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const [selectedLang, setSelectedLang] = useState<string>(
     language === 'ml' ? 'ml-IN' : 'en-IN',
   );
@@ -291,14 +291,14 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
             Sarvam AI Saaras v3
           </span>
           <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 font-mono">
-            STT Active
+            {t('voiceStatusActive')}
           </span>
         </div>
 
         {/* Spoken Language Toggle */}
         <div className="flex items-center gap-1.5 text-[12px]">
           <Globe className="w-3.5 h-3.5 text-[var(--text-muted)]" />
-          <span className="text-[var(--text-muted)] font-mono text-[11px]">Spoken:</span>
+          <span className="text-[var(--text-muted)] font-mono text-[11px]">{t('voiceSpoken')}</span>
           <div className="inline-flex rounded-lg bg-[var(--bg-primary)] p-0.5 border border-[var(--border-standard)]">
             <button
               type="button"
@@ -334,7 +334,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
-              Auto Detect
+              {t('voiceAutoDetect')}
             </button>
           </div>
         </div>
@@ -343,12 +343,11 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       <div className="space-y-4">
         <div>
           <h2 className="text-[20px] font-bold text-[var(--text-primary)] flex items-center gap-2">
-            <span>Record your complaint</span>
+            <span>{t('voiceRecordHeading')}</span>
             <Sparkles className="w-4 h-4 text-[var(--brand)]" />
           </h2>
           <p className="text-[14px] text-[var(--text-secondary)] mt-1">
-            Tap the mic, speak naturally about your trip (bus route, time, and grievance), then tap stop.
-            Transcribed in real-time with Sarvam AI.
+            {t('voiceRecordInstruction')}
           </p>
         </div>
 
@@ -357,7 +356,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
             type="button"
             onClick={isRecording ? () => void stopRecording() : () => void startRecording()}
             disabled={isProcessing}
-            aria-label={isRecording ? 'Stop recording' : 'Start recording'}
+            aria-label={isRecording ? t('voiceStopRecording') : t('voiceStartRecording')}
             className={`w-[76px] h-[76px] rounded-full flex flex-col items-center justify-center transition-all duration-150 cursor-pointer shrink-0 shadow-lg ${
               isRecording
                 ? 'bg-[var(--semantic-danger)] text-white ring-4 ring-red-200 animate-pulse'
@@ -379,27 +378,27 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                 <div className="inline-flex items-center gap-2 text-[14px] font-mono font-medium text-[var(--text-primary)]">
                   <span className="w-2.5 h-2.5 rounded-full bg-[var(--semantic-danger)] animate-ping" />
                   <span>
-                    Recording ({formatTimer(recordingSeconds)} / {formatTimer(MAX_SECONDS)})
+                    {t('voiceRecording')} ({formatTimer(recordingSeconds)} / {formatTimer(MAX_SECONDS)})
                   </span>
                 </div>
-                <p className="text-[12px] text-[var(--text-secondary)]">Tap square when finished speaking</p>
+                <p className="text-[12px] text-[var(--text-secondary)]">{t('voiceTapStop')}</p>
               </div>
             ) : isProcessing ? (
               <div className="space-y-0.5">
                 <div className="text-[14px] font-semibold text-[var(--brand)] flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-[var(--brand)] animate-ping" />
-                  <span>Transcribing with Sarvam AI…</span>
+                  <span>{t('voiceTranscribing')}</span>
                 </div>
                 <p className="text-[12px] text-[var(--text-secondary)]">
-                  Extracting route, bus number, and grievance category
+                  {t('voiceExtracting')}
                 </p>
               </div>
             ) : (
               <div className="space-y-0.5">
                 <div className="text-[14px] font-medium text-[var(--text-primary)]">
-                  {selectedLang === 'ml-IN' ? 'റെക്കോർഡ് ചെയ്യാൻ മൈക്ക് അമർത്തുക' : 'Tap mic to start speaking'}
+                  {selectedLang === 'ml-IN' ? 'റെക്കോർഡ് ചെയ്യാൻ മൈക്ക് അമർത്തുക' : t('voiceTapMic')}
                 </div>
-                <p className="text-[12px] text-[var(--text-secondary)]">Up to {MAX_SECONDS} seconds · Audio processed securely</p>
+                <p className="text-[12px] text-[var(--text-secondary)]">{t('voiceSecure')}</p>
               </div>
             )}
           </div>
@@ -419,7 +418,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
             <div className="flex items-center justify-between">
               <span className="font-mono text-[11px] uppercase tracking-wider text-[var(--brand)] font-bold flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                <span>Transcribed with Sarvam AI:</span>
+                <span>{t('voiceTranscribed')}</span>
               </span>
               {detectedProvider && (
                 <span className="text-[10px] font-mono text-[var(--text-muted)]">
@@ -434,7 +433,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
             {englishTranslation && englishTranslation !== liveTranscript && (
               <div className="pt-2 border-t border-[var(--border-standard)] mt-2">
                 <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--text-muted)] block">
-                  English Translation (Sarvam Saaras):
+                  {t('voiceEnglishTranslation')}
                 </span>
                 <p className="text-[13px] text-[var(--text-secondary)] italic mt-0.5">
                   “{englishTranslation}”
@@ -445,7 +444,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         ) : (
           <div>
             <span className="font-mono text-[11px] uppercase tracking-wider text-[var(--text-muted)] block">
-              Sample phrasing:
+              {t('voiceSample')}
             </span>
             <p className="italic text-[13px] text-[var(--text-secondary)] mt-0.5">
               “I have a cleanliness complaint about the bus travelling from Guruvayur to Kozhikode. The seats in the
