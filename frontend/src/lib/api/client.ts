@@ -32,7 +32,8 @@ export class BackendUnavailable extends Error {}
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 15000);
+  const timeoutMs = path === '/api/v1/extract/ticket' ? 60000 : 15000;
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   const headers = new Headers(init?.headers);
   const token = await bearerToken();
   if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);

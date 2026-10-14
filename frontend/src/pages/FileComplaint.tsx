@@ -127,8 +127,8 @@ export const FileComplaint: React.FC = () => {
     setTicketProgress(8);
     setTicketStatus('reading');
     const progressTimer = window.setInterval(() => {
-      setTicketProgress((current) => Math.min(current + 7, 82));
-    }, 350);
+      setTicketProgress((current) => Math.min(current + 5, 95));
+    }, 500);
     void (async () => {
       try {
         const extracted = await complaintsService.extractTicket(file);
