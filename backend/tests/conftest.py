@@ -2,6 +2,7 @@
 import os
 
 os.environ.setdefault("ADMIN_API_TOKEN", "test-staff-token")
+os.environ.setdefault("WHATSAPP_VERIFY_TOKEN", "test-whatsapp-verify-token")
 
 # ---------------------------------------------------------------------------
 # needs_db marker: DB-backed tests (filing/track/status/E2E) hit the live

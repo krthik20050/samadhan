@@ -56,5 +56,3 @@ describe('Ticket-first complaint flow',()=>{
     const values=journeyFromTicket({origin:'Guruvayur',destination:'Ernakulam'});expect(values.bus_number).toBe('');expect(values.via).toBe('');values.destination='Aluva';expect(editedTicket(values,{has_qr:true})).toMatchObject({destination:'Aluva',bus_number:null,has_qr:true});
   });
 });
-
-
